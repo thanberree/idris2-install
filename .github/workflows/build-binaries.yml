@@ -7,9 +7,18 @@ on:
         description: 'Pack collection to use'
         required: true
         default: 'nightly-250828'
+      build_ubuntu:
+        description: 'Build Ubuntu'
+        type: boolean
+        default: true
+      build_macos:
+        description: 'Build macOS'
+        type: boolean
+        default: true
 
 jobs:
   build-ubuntu:
+    if: ${{ inputs.build_ubuntu }}
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
@@ -80,6 +89,7 @@ jobs:
 
   test-ubuntu:
     needs: build-ubuntu
+    if: ${{ inputs.build_ubuntu }}
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
@@ -130,6 +140,7 @@ jobs:
           ./build/exec/hello
 
   build-macos:
+    if: ${{ inputs.build_macos }}
     strategy:
       matrix:
         include:
@@ -201,6 +212,7 @@ jobs:
 
   test-macos:
     needs: build-macos
+    if: ${{ inputs.build_macos }}
     strategy:
       matrix:
         include:
