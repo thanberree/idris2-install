@@ -140,7 +140,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Install Chez Scheme
-        run: brew install chezscheme
+        run: |
+          brew install chezscheme
+          # Create symlink so 'chezscheme' command exists
+          sudo ln -sf $(brew --prefix)/bin/chez /usr/local/bin/chezscheme
 
       - name: Install pack + Idris2
         run: |
@@ -149,7 +152,7 @@ jobs:
           sed -i '' 's/read -r -p "Enter the name of your chez-scheme or racket binary \[\$DETECTED_SCHEME\]: " SCHEME/SCHEME=\${SCHEME:-\$DETECTED_SCHEME}/' install.bash
           bash install.bash
         env:
-          SCHEME: chezscheme
+          SCHEME: chez
 
       - name: Switch to target collection
         run: ~/.local/bin/pack --bootstrap switch ${{ github.event.inputs.collection }}
