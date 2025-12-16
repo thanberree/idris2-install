@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Version de l'installeur
+INSTALLER_VERSION="1.3.1"
+
+# Configuration
+ARCHIVE_URL="${ARCHIVE_URL:-https://github.com/thanberree/idris2-install/releases/download/v1.0/idris2-pack-nightly-250828-noble-full.tar.gz}"
+COLLECTION="nightly-250828"
+MIN_DISK_SPACE_MB=300
+
+# Couleurs (désactivées si pas de terminal)
+if [[ -t 1 ]]; then
+  RED='\e[91m'
+  GREEN='\e[92m'
+  YELLOW='\e[93m'
+  NC='\e[0m'
+else
+  RED=''
+  GREEN=''
+  YELLOW=''
+  NC=''
+fi
+
+info() { echo -e "${GREEN}[INFO]${NC} $*"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
+error() { echo -e "${RED}[ERREUR]${NC} $*" >&2; exit 1; }
+
+# Nettoyage en cas d'erreur
+TEMP_ARCHIVE=""
+cleanup() {
+  if [[ -n "$TEMP_ARCHIVE" ]] && [[ -f "$TEMP_ARCHIVE" ]]; then
+    rm -f "$TEMP_ARCHIVE"
+  fi
+}
+trap cleanup EXIT
+
+# Parser les arguments
+FORCE=0
+for arg in "$@"; do
+  case "$arg" in
+    --force|-f) FORCE=1 ;;
+    --version|-v)
+      echo "install.sh version $INSTALLER_VERSION"
+      exit 0
+      ;;
+    --help|-h)
+      echo "Usage: $0 [OPTIONS]"
+      echo ""
+      echo "Options:"
+      echo "  --force, -f    Réinstaller même si une installation existe"
+      echo "  --version, -v  Afficher la version du script"
+      echo "  --help, -h     Afficher cette aide"
+      exit 0
+      ;;
+    *)
+      warn "Option inconnue: $arg"
+      ;;
+  esac
+done
+
+echo "Installation d'Idris2 et du gestionnaire de paquets pack."
+echo -e "${YELLOW}[Script v$INSTALLER_VERSION]${NC}"
+echo ""
+
+# Vérifications de base
+[[ "${EUID:-$(id -u)}" -eq 0 ]] && error "Ne pas exécuter en root."
+command -v curl &>/dev/null || error "curl est requis. Installez-le avec: sudo apt install curl"
+
+# Vérifier l'espace disque disponible
+check_disk_space() {
+  local available_mb
+  available_mb=$(df -m "$HOME" | awk 'NR==2 {print $4}')
+  if [[ "$available_mb" -lt "$MIN_DISK_SPACE_MB" ]]; then
+    error "Espace disque insuffisant. Requis: ${MIN_DISK_SPACE_MB} Mo, Disponible: ${available_mb} Mo"
+  fi
+}
+check_disk_space
+
+# Détection d'installations existantes
+OLD_INSTALL=""
+NEW_INSTALL=""
+
+if [[ -d "$HOME/.pack" ]] || [[ -x "$HOME/.pack/bin/pack" ]]; then
+  OLD_INSTALL="$HOME/.pack"
+fi
+
+if [[ -x "$HOME/.local/bin/pack" ]] || [[ -d "$HOME/.local/state/pack" ]]; then
+  NEW_INSTALL="$HOME/.local"
+fi
+
+# Si une installation existe, proposer de désinstaller
+if [[ -n "$OLD_INSTALL" ]] || [[ -n "$NEW_INSTALL" ]]; then
+  warn "Une installation existante d'Idris2/pack a été détectée."
+  echo ""
+  
+  if [[ "$FORCE" == "1" ]]; then
+    info "Option --force détectée, réinstallation..."
+  elif [[ -t 0 ]]; then
+    read -p "Voulez-vous la supprimer et réinstaller ? [o/N] " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[OoYy]$ ]]; then
+      info "Installation annulée."
+      exit 0
+    fi
+  else
+    echo "Pour réinstaller, utilisez l'option --force :"
+    echo "  curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install.sh | bash -s -- --force"
+    exit 0
+  fi
+  
+  info "Suppression de l'ancienne installation..."
+  
+  if [[ -n "$OLD_INSTALL" ]]; then
+    rm -rf "$HOME/.pack"
+    sed -i '/\.pack\/bin/d' "$HOME/.bashrc" 2>/dev/null || true
+  fi
+  
+  if [[ -n "$NEW_INSTALL" ]]; then
+    rm -rf "$HOME/.local/bin/pack" "$HOME/.local/bin/pack_app" "$HOME/.local/bin/idris2"
+    rm -rf "$HOME/.local/state/pack" "$HOME/.config/pack" "$HOME/.cache/pack"
+  fi
+  
+  info "Ancienne installation supprimée."
+  echo ""
+fi
+
+# Collecter les paquets apt à installer
+APT_PACKAGES=""
+APT_UPDATED=0
+
+need_apt_update() {
+  if [[ "$APT_UPDATED" == "0" ]] && command -v apt-get &>/dev/null; then
+    info "Mise à jour des sources apt..."
+    sudo apt-get update
+    APT_UPDATED=1
+  fi
+}
+
+# Vérifier Chez Scheme
+if ! command -v chezscheme &>/dev/null && ! command -v chez &>/dev/null && ! command -v scheme &>/dev/null; then
+  APT_PACKAGES="$APT_PACKAGES chezscheme"
+fi
+
+# Vérifier rlwrap
+if ! command -v rlwrap &>/dev/null; then
+  APT_PACKAGES="$APT_PACKAGES rlwrap"
+fi
+
+# Vérifier outils nécessaires
+command -v timeout &>/dev/null || APT_PACKAGES="$APT_PACKAGES coreutils"
+command -v unzip &>/dev/null || APT_PACKAGES="$APT_PACKAGES unzip"
+
+# Installer tous les paquets apt en une seule fois
+if [[ -n "$APT_PACKAGES" ]]; then
+  if command -v apt-get &>/dev/null; then
+    need_apt_update
+    info "Installation des dépendances:$APT_PACKAGES"
+    sudo apt-get install -y $APT_PACKAGES
+  else
+    error "apt-get non disponible. Installez manuellement:$APT_PACKAGES"
+  fi
+fi
+
+# Vérifier que /usr/bin/chezscheme existe (le shebang des binaires en a besoin)
+if [[ ! -x /usr/bin/chezscheme ]]; then
+  if [[ -x /usr/bin/scheme ]]; then
+    info "Création du lien /usr/bin/chezscheme -> /usr/bin/scheme"
+    sudo ln -sf /usr/bin/scheme /usr/bin/chezscheme
+  elif [[ -x /usr/bin/chez ]]; then
+    info "Création du lien /usr/bin/chezscheme -> /usr/bin/chez"
+    sudo ln -sf /usr/bin/chez /usr/bin/chezscheme
+  elif command -v chezscheme &>/dev/null; then
+    # chezscheme existe mais pas dans /usr/bin
+    chez_path=$(command -v chezscheme)
+    info "Création du lien /usr/bin/chezscheme -> $chez_path"
+    sudo ln -sf "$chez_path" /usr/bin/chezscheme
+  else
+    error "Chez Scheme introuvable. Vérifiez: which scheme chez chezscheme"
+  fi
+fi
+
+# Téléchargement et installation
+info "Téléchargement des binaires Idris2 + pack..."
+mkdir -p "$HOME/.local/bin" "$HOME/.local/state" "$HOME/.config" "$HOME/.cache"
+
+TEMP_ARCHIVE=$(mktemp)
+if ! curl -fSL "$ARCHIVE_URL" -o "$TEMP_ARCHIVE"; then
+  error "Échec du téléchargement. Vérifiez votre connexion internet."
+fi
+
+# Vérifier que l'archive n'est pas vide ou trop petite
+ARCHIVE_SIZE=$(stat -c%s "$TEMP_ARCHIVE" 2>/dev/null || stat -f%z "$TEMP_ARCHIVE" 2>/dev/null || echo "0")
+if [[ "$ARCHIVE_SIZE" -lt 1000000 ]]; then
+  error "Archive téléchargée invalide (taille: $ARCHIVE_SIZE octets)"
+fi
+
+info "Extraction de l'archive..."
+if ! tar xzf "$TEMP_ARCHIVE" -C "$HOME"; then
+  error "Échec de l'extraction de l'archive."
+fi
+
+rm -f "$TEMP_ARCHIVE"
+TEMP_ARCHIVE=""
+
+# PATH
+if ! grep -q '.local/bin' "$HOME/.bashrc" 2>/dev/null; then
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+  info "PATH mis à jour dans ~/.bashrc"
+fi
+
+# Support zsh
+if [[ -f "$HOME/.zshrc" ]] && ! grep -q '.local/bin' "$HOME/.zshrc" 2>/dev/null; then
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
+  info "PATH mis à jour dans ~/.zshrc"
+fi
+
+export PATH="$HOME/.local/bin:$PATH"
+
+# Vérification finale
+if command -v pack &>/dev/null && command -v idris2 &>/dev/null; then
+  echo ""
+  info "Installation terminée avec succès !"
+  echo ""
+  pack info
+  echo ""
+  
+  # Vérifier si pack/idris2 sont accessibles sans le PATH modifié
+  # (c'est-à-dire si .local/bin était déjà dans le PATH de l'utilisateur)
+  ORIGINAL_PATH="${PATH#$HOME/.local/bin:}"
+  if PATH="$ORIGINAL_PATH" command -v pack &>/dev/null; then
+    info "Les commandes pack et idris2 sont prêtes à l'emploi."
+  else
+    echo -e "${YELLOW}Pour utiliser Idris2, ouvrez un nouveau terminal ou tapez:${NC}"
+    echo "  source ~/.bashrc"
+    echo ""
+    echo "Puis vérifiez avec:"
+    echo "  pack info"
+    echo "  idris2 --version"
+  fi
+else
+  error "Problème lors de l'installation. Les commandes pack/idris2 ne sont pas accessibles."
+fi
