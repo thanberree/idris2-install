@@ -5,7 +5,14 @@
 - Ubuntu 22.04 / 24.04 ou macOS
 - curl (`sudo apt install curl` sur Ubuntu)
 
-## Installation
+## Méthode 1 : Installeur graphique (recommandé pour débutants)
+
+1. Téléchargez le fichier `install-graphique.sh`
+2. Clic droit → Propriétés → Permissions → cochez "Autoriser l'exécution"
+3. Double-cliquez sur le fichier
+4. Suivez les instructions à l'écran
+
+## Méthode 2 : Ligne de commande
 
 Ouvrez un terminal et exécutez :
 

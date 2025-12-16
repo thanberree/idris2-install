@@ -9,6 +9,9 @@ OUTPUT="idris2-pack-${COLLECTION}-$(lsb_release -cs).tar.gz"
 
 echo "Création de l'archive $OUTPUT..."
 
+# Ajouter ~/.local/bin au PATH si nécessaire
+export PATH="$HOME/.local/bin:$PATH"
+
 # Vérifier que pack fonctionne
 if ! command -v pack &>/dev/null; then
   echo "Erreur: pack n'est pas installé ou pas dans le PATH"
@@ -18,14 +21,13 @@ fi
 echo "Collection actuelle:"
 pack info | head -5
 
-# Créer l'archive
+# Créer l'archive (version minimale sans cache git)
 cd "$HOME"
 tar -czvf "$OUTPUT" \
   .local/bin/pack \
   .local/bin/idris2 \
   .local/state/pack \
-  .config/pack \
-  .cache/pack 2>/dev/null || true
+  .config/pack
 
 echo ""
 echo "Archive créée: $HOME/$OUTPUT"
