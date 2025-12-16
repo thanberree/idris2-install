@@ -7,10 +7,14 @@
 
 ## Méthode 1 : Installeur graphique (recommandé pour débutants)
 
-1. Téléchargez le fichier `install-graphique.sh`
-2. Clic droit → Propriétés → Permissions → cochez "Autoriser l'exécution"
-3. Double-cliquez sur le fichier
-4. Suivez les instructions à l'écran
+1. Téléchargez les deux fichiers :
+   - `Installer-Idris2.desktop`
+   - `install-graphique.sh`
+2. Placez-les dans le même dossier (ex: Téléchargements)
+3. Clic droit sur `Installer-Idris2.desktop` → "Autoriser l'exécution" (ou Propriétés → Permissions → Exécuter)
+4. Double-cliquez sur `Installer-Idris2.desktop`
+5. Cliquez "Lancer" si Ubuntu demande confirmation
+6. Suivez les instructions à l'écran
 
 ## Méthode 2 : Ligne de commande
 

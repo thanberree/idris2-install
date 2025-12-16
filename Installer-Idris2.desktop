@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Installer Idris2
+Comment=Installe Idris2 et pack pour Ubuntu
+Exec=bash -c 'cd "$(dirname "%k")" && ./install-graphique.sh'
+Icon=system-software-install
+Terminal=false
+Categories=Development;
