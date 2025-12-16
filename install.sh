@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # Version de l'installeur
-INSTALLER_VERSION="1.3.1"
+INSTALLER_VERSION="1.4.0"
 
 # Configuration
-ARCHIVE_URL="${ARCHIVE_URL:-https://github.com/thanberree/idris2-install/releases/download/v1.0/idris2-pack-nightly-250828-noble-full.tar.gz}"
 COLLECTION="nightly-250828"
+RELEASE_BASE_URL="https://github.com/thanberree/idris2-install/releases/download/v1.0"
 MIN_DISK_SPACE_MB=300
 
 # Couleurs (désactivées si pas de terminal)
@@ -66,6 +66,45 @@ echo ""
 # Vérifications de base
 [[ "${EUID:-$(id -u)}" -eq 0 ]] && error "Ne pas exécuter en root."
 command -v curl &>/dev/null || error "curl est requis. Installez-le avec: sudo apt install curl"
+
+# Détecter l'OS et choisir la bonne archive
+detect_archive_url() {
+  if [[ -n "${ARCHIVE_URL:-}" ]]; then
+    # URL fournie manuellement
+    echo "$ARCHIVE_URL"
+    return
+  fi
+  
+  local os_type arch codename
+  os_type=$(uname -s)
+  arch=$(uname -m)
+  
+  case "$os_type" in
+    Linux)
+      if command -v lsb_release &>/dev/null; then
+        codename=$(lsb_release -cs)
+      elif [[ -f /etc/os-release ]]; then
+        codename=$(grep VERSION_CODENAME /etc/os-release | cut -d= -f2)
+      else
+        codename="noble"  # fallback Ubuntu 24.04
+      fi
+      echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-${codename}-full.tar.gz"
+      ;;
+    Darwin)
+      if [[ "$arch" == "arm64" ]]; then
+        echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-macos-arm64-full.tar.gz"
+      else
+        echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-macos-x86_64-full.tar.gz"
+      fi
+      ;;
+    *)
+      error "OS non supporté: $os_type. Seuls Linux (Ubuntu) et macOS sont supportés."
+      ;;
+  esac
+}
+
+ARCHIVE_URL=$(detect_archive_url)
+info "Archive détectée: $(basename "$ARCHIVE_URL")"
 
 # Vérifier l'espace disque disponible
 check_disk_space() {
