@@ -78,6 +78,57 @@ jobs:
           name: idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}
           path: ~/idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}-full.tar.gz
 
+  test-ubuntu:
+    needs: build-ubuntu
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install Chez Scheme (runtime dependency)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chezscheme
+
+      - name: Get OS codename
+        id: os
+        run: echo "codename=$(lsb_release -cs)" >> $GITHUB_OUTPUT
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}
+          path: ~/
+
+      - name: Extract archive
+        run: |
+          cd ~
+          tar xzf idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}-full.tar.gz
+
+      - name: Test pack info
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          pack info
+
+      - name: Test idris2 --version
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          idris2 --version
+
+      - name: Test compile Hello World
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p /tmp/test-idris
+          cat > /tmp/test-idris/Hello.idr << 'EOF'
+          module Hello
+          
+          main : IO ()
+          main = putStrLn "Hello from Idris2!"
+          EOF
+          cd /tmp/test-idris
+          idris2 -o hello Hello.idr
+          ./build/exec/hello
+
   build-macos:
     strategy:
       matrix:
@@ -144,3 +195,52 @@ jobs:
         with:
           name: idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}
           path: ~/idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}-full.tar.gz
+
+  test-macos:
+    needs: build-macos
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            arch: x86_64
+          - os: macos-14
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install Chez Scheme (runtime dependency)
+        run: brew install chezscheme
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}
+          path: ~/
+
+      - name: Extract archive
+        run: |
+          cd ~
+          tar xzf idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}-full.tar.gz
+
+      - name: Test pack info
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          pack info
+
+      - name: Test idris2 --version
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          idris2 --version
+
+      - name: Test compile Hello World
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p /tmp/test-idris
+          cat > /tmp/test-idris/Hello.idr << 'EOF'
+          module Hello
+          
+          main : IO ()
+          main = putStrLn "Hello from Idris2!"
+          EOF
+          cd /tmp/test-idris
+          idris2 -o hello Hello.idr
+          ./build/exec/hello
