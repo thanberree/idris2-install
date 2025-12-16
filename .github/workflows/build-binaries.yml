@@ -1,0 +1,103 @@
+name: Build Idris2 + pack binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      collection:
+        description: 'Pack collection to use'
+        required: true
+        default: 'nightly-250828'
+
+jobs:
+  build-ubuntu:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chezscheme libgmp-dev make gcc git
+
+      - name: Download install.bash
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/stefan-hoeck/idris2-pack/main/install.bash -o install.bash
+
+      - name: Patch install.bash for non-interactive
+        run: |
+          sed -i 's/read -r -p "Enter the name of your chez-scheme or racket binary \[\$DETECTED_SCHEME\]: " SCHEME/SCHEME=\${SCHEME:-\$DETECTED_SCHEME}/' install.bash
+
+      - name: Run install.bash
+        run: bash install.bash
+        env:
+          SCHEME: chezscheme
+
+      - name: Switch to target collection
+        run: ~/.local/bin/pack --bootstrap switch ${{ github.event.inputs.collection }}
+
+      - name: Get OS codename
+        id: os
+        run: echo "codename=$(lsb_release -cs)" >> $GITHUB_OUTPUT
+
+      - name: Create archive
+        run: |
+          cd ~
+          tar -czvf idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}.tar.gz \
+            .local/bin/pack \
+            .local/bin/idris2 \
+            .local/state/pack \
+            .config/pack \
+            .cache/pack
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}
+          path: ~/idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}.tar.gz
+
+  build-macos:
+    strategy:
+      matrix:
+        os: [macos-13, macos-14]
+        # macos-13 = Intel, macos-14 = Apple Silicon
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install Chez Scheme
+        run: brew install chezscheme
+
+      - name: Download install.bash
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/stefan-hoeck/idris2-pack/main/install.bash -o install.bash
+
+      - name: Patch install.bash for non-interactive
+        run: |
+          sed -i '' 's/read -r -p "Enter the name of your chez-scheme or racket binary \[\$DETECTED_SCHEME\]: " SCHEME/SCHEME=\${SCHEME:-\$DETECTED_SCHEME}/' install.bash
+
+      - name: Run install.bash
+        run: bash install.bash
+        env:
+          SCHEME: chezscheme
+
+      - name: Switch to target collection
+        run: ~/.local/bin/pack --bootstrap switch ${{ github.event.inputs.collection }}
+
+      - name: Get arch
+        id: arch
+        run: echo "arch=$(uname -m)" >> $GITHUB_OUTPUT
+
+      - name: Create archive
+        run: |
+          cd ~
+          tar -czvf idris2-pack-${{ github.event.inputs.collection }}-macos-${{ steps.arch.outputs.arch }}.tar.gz \
+            .local/bin/pack \
+            .local/bin/idris2 \
+            .local/state/pack \
+            .config/pack \
+            .cache/pack
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: idris2-pack-${{ github.event.inputs.collection }}-macos-${{ steps.arch.outputs.arch }}
+          path: ~/idris2-pack-${{ github.event.inputs.collection }}-macos-${{ steps.arch.outputs.arch }}.tar.gz
