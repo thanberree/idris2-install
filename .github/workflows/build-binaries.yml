@@ -87,6 +87,12 @@ jobs:
           name: idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}
           path: ~/idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}-full.tar.gz
 
+      - name: Upload to release
+        run: |
+          gh release upload v1.0 ~/idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}-full.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test-ubuntu:
     needs: build-ubuntu
     if: ${{ inputs.build_ubuntu }}
@@ -209,6 +215,12 @@ jobs:
         with:
           name: idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}
           path: ~/idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}-full.tar.gz
+
+      - name: Upload to release
+        run: |
+          gh release upload v1.0 ~/idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}-full.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test-macos:
     needs: build-macos
