@@ -12,9 +12,9 @@ on:
         type: boolean
         default: true
       build_macos:
-        description: 'Build macOS'
+        description: 'Build macOS (PAYANT - consomme le quota)'
         type: boolean
-        default: true
+        default: false
 
 jobs:
   build-ubuntu:
