@@ -1,0 +1,146 @@
+name: Build Idris2 + pack binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      collection:
+        description: 'Pack collection to use'
+        required: true
+        default: 'nightly-250828'
+
+jobs:
+  build-ubuntu:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chezscheme libgmp-dev make gcc git
+
+      - name: Install pack + Idris2
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/stefan-hoeck/idris2-pack/main/install.bash -o install.bash
+          # Patch for non-interactive install
+          sed -i 's/read -r -p "Enter the name of your chez-scheme or racket binary \[\$DETECTED_SCHEME\]: " SCHEME/SCHEME=\${SCHEME:-\$DETECTED_SCHEME}/' install.bash
+          bash install.bash
+        env:
+          SCHEME: chezscheme
+
+      - name: Switch to target collection
+        run: ~/.local/bin/pack --bootstrap switch ${{ github.event.inputs.collection }}
+
+      - name: Install required packages
+        run: |
+          ~/.local/bin/pack install ansi containers contrib elab-pretty elab-util getopts hedgehog prettier-ansi pretty-show prim sop
+
+      - name: Fix idris2 script for portability
+        run: |
+          cat > ~/.local/bin/idris2 << 'IDRIS2_SCRIPT'
+          #!/bin/sh
+          PACK_BIN="$HOME/.local/bin/pack"
+          if ! APPLICATION="$("$PACK_BIN" app-path idris2)" || [ ! -r "$APPLICATION" ]; then
+            {
+              echo '[ fatal ] Package `idris2` is not built or not installed in the current'
+              echo '          environment. Maybe, it was installed with an older compiler version'
+              echo '          or using a local `pack.toml` which is not available in the current'
+              echo '          directory. Try to reinstall it with `pack install-app idris2`.'
+            } >&2
+            exit 2
+          fi
+          export IDRIS2_PACKAGE_PATH="$("$PACK_BIN" package-path)"
+          export IDRIS2_LIBS="$("$PACK_BIN" libs-path)"
+          export IDRIS2_DATA="$("$PACK_BIN" data-path)"
+          exec "$APPLICATION" "$@"
+          IDRIS2_SCRIPT
+          chmod +x ~/.local/bin/idris2
+
+      - name: Get OS codename
+        id: os
+        run: echo "codename=$(lsb_release -cs)" >> $GITHUB_OUTPUT
+
+      - name: Create archive
+        run: |
+          cd ~
+          tar --exclude='.git' -czvf idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}-full.tar.gz \
+            .local/bin/pack \
+            .local/bin/pack_app \
+            .local/bin/idris2 \
+            .local/state/pack \
+            .config/pack \
+            .cache/pack
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}
+          path: ~/idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}-full.tar.gz
+
+  build-macos:
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            arch: x86_64
+          - os: macos-14
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install Chez Scheme
+        run: brew install chezscheme
+
+      - name: Install pack + Idris2
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/stefan-hoeck/idris2-pack/main/install.bash -o install.bash
+          # Patch for non-interactive install (macOS sed syntax)
+          sed -i '' 's/read -r -p "Enter the name of your chez-scheme or racket binary \[\$DETECTED_SCHEME\]: " SCHEME/SCHEME=\${SCHEME:-\$DETECTED_SCHEME}/' install.bash
+          bash install.bash
+        env:
+          SCHEME: chezscheme
+
+      - name: Switch to target collection
+        run: ~/.local/bin/pack --bootstrap switch ${{ github.event.inputs.collection }}
+
+      - name: Install required packages
+        run: |
+          ~/.local/bin/pack install ansi containers contrib elab-pretty elab-util getopts hedgehog prettier-ansi pretty-show prim sop
+
+      - name: Fix idris2 script for portability
+        run: |
+          cat > ~/.local/bin/idris2 << 'IDRIS2_SCRIPT'
+          #!/bin/sh
+          PACK_BIN="$HOME/.local/bin/pack"
+          if ! APPLICATION="$("$PACK_BIN" app-path idris2)" || [ ! -r "$APPLICATION" ]; then
+            {
+              echo '[ fatal ] Package `idris2` is not built or not installed in the current'
+              echo '          environment. Maybe, it was installed with an older compiler version'
+              echo '          or using a local `pack.toml` which is not available in the current'
+              echo '          directory. Try to reinstall it with `pack install-app idris2`.'
+            } >&2
+            exit 2
+          fi
+          export IDRIS2_PACKAGE_PATH="$("$PACK_BIN" package-path)"
+          export IDRIS2_LIBS="$("$PACK_BIN" libs-path)"
+          export IDRIS2_DATA="$("$PACK_BIN" data-path)"
+          exec "$APPLICATION" "$@"
+          IDRIS2_SCRIPT
+          chmod +x ~/.local/bin/idris2
+
+      - name: Create archive
+        run: |
+          cd ~
+          tar --exclude='.git' -czvf idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}-full.tar.gz \
+            .local/bin/pack \
+            .local/bin/pack_app \
+            .local/bin/idris2 \
+            .local/state/pack \
+            .config/pack \
+            .cache/pack
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}
+          path: ~/idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}-full.tar.gz
