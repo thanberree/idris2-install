@@ -17,6 +17,7 @@ Then open a new terminal (or run `source ~/.bashrc`) and verify:
 ```bash
 pack info
 idris2 --version
+idris2-lsp --version
 ```
 
 ### Reinstall

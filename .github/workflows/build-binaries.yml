@@ -45,26 +45,60 @@ jobs:
         run: |
           ~/.local/bin/pack install ansi containers contrib elab-pretty elab-util getopts hedgehog prettier-ansi pretty-show prim sop
 
-      - name: Fix idris2 script for portability
+      - name: Install idris2-lsp
         run: |
-          cat > ~/.local/bin/idris2 << 'IDRIS2_SCRIPT'
+          ~/.local/bin/pack install-app idris2-lsp
+
+      - name: Create standalone wrappers for idris2 and idris2-lsp
+        run: |
+          # Get commit hash and app hashes
+          IDRIS2_COMMIT=$(ls ~/.local/state/pack/install/ | grep -E '^[0-9a-f]{40}$' | head -1)
+          LSP_HASH=$(ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2-lsp/ | head -1)
+          
+          # Create standalone idris2 wrapper
+          cat > ~/.local/bin/idris2 << WRAPPER
           #!/bin/sh
-          PACK_BIN="$HOME/.local/bin/pack"
-          if ! APPLICATION="$("$PACK_BIN" app-path idris2)" || [ ! -r "$APPLICATION" ]; then
-            {
-              echo '[ fatal ] Package `idris2` is not built or not installed in the current'
-              echo '          environment. Maybe, it was installed with an older compiler version'
-              echo '          or using a local `pack.toml` which is not available in the current'
-              echo '          directory. Try to reinstall it with `pack install-app idris2`.'
-            } >&2
+          set -e
+          DIR=\$(dirname "\$(readlink -f -- "\$0")")
+          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
+          APPLICATION="\$INSTALL_DIR/idris2/bin/idris2"
+          
+          if [ ! -x "\$APPLICATION" ]; then
+            echo "[ fatal ] idris2 binary not found" >&2
             exit 2
           fi
-          export IDRIS2_PACKAGE_PATH="$("$PACK_BIN" package-path)"
-          export IDRIS2_LIBS="$("$PACK_BIN" libs-path)"
-          export IDRIS2_DATA="$("$PACK_BIN" data-path)"
-          exec "$APPLICATION" "$@"
-          IDRIS2_SCRIPT
+          
+          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-0.7.0"
+          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
+          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-0.7.0/lib"
+          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-0.7.0/support"
+          
+          exec "\$APPLICATION" "\$@"
+          WRAPPER
           chmod +x ~/.local/bin/idris2
+          
+          # Create standalone idris2-lsp wrapper
+          cat > ~/.local/bin/idris2-lsp << WRAPPER
+          #!/bin/sh
+          set -e
+          DIR=\$(dirname "\$(readlink -f -- "\$0")")
+          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
+          APPLICATION="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp"
+          
+          if [ ! -x "\$APPLICATION" ]; then
+            echo "[ fatal ] idris2-lsp binary not found" >&2
+            exit 2
+          fi
+          
+          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-0.7.0"
+          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
+          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-0.7.0/lib"
+          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-0.7.0/support"
+          export LD_LIBRARY_PATH="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp_app:\$LD_LIBRARY_PATH"
+          
+          exec "\$APPLICATION" "\$@"
+          WRAPPER
+          chmod +x ~/.local/bin/idris2-lsp
 
       - name: Get OS codename
         id: os
@@ -77,6 +111,7 @@ jobs:
             .local/bin/pack \
             .local/bin/pack_app \
             .local/bin/idris2 \
+            .local/bin/idris2-lsp \
             .local/state/pack \
             .config/pack \
             .cache/pack
@@ -131,6 +166,11 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           idris2 --version
 
+      - name: Test idris2-lsp --version
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          idris2-lsp --version
+
       - name: Test compile Hello World
         run: |
           export PATH="$HOME/.local/bin:$PATH"
@@ -178,26 +218,69 @@ jobs:
         run: |
           ~/.local/bin/pack install ansi containers contrib elab-pretty elab-util getopts hedgehog prettier-ansi pretty-show prim sop
 
-      - name: Fix idris2 script for portability
+      - name: Install idris2-lsp
         run: |
-          cat > ~/.local/bin/idris2 << 'IDRIS2_SCRIPT'
+          ~/.local/bin/pack install-app idris2-lsp
+
+      - name: Create standalone wrappers for idris2 and idris2-lsp
+        run: |
+          # Get commit hash and app hashes
+          IDRIS2_COMMIT=$(ls ~/.local/state/pack/install/ | grep -E '^[0-9a-f]{40}$' | head -1)
+          LSP_HASH=$(ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2-lsp/ | head -1)
+          
+          # Create standalone idris2 wrapper (macOS compatible)
+          cat > ~/.local/bin/idris2 << WRAPPER
           #!/bin/sh
-          PACK_BIN="$HOME/.local/bin/pack"
-          if ! APPLICATION="$("$PACK_BIN" app-path idris2)" || [ ! -r "$APPLICATION" ]; then
-            {
-              echo '[ fatal ] Package `idris2` is not built or not installed in the current'
-              echo '          environment. Maybe, it was installed with an older compiler version'
-              echo '          or using a local `pack.toml` which is not available in the current'
-              echo '          directory. Try to reinstall it with `pack install-app idris2`.'
-            } >&2
+          set -e
+          if [ "\$(uname)" = Darwin ]; then
+            DIR=\$(cd "\$(dirname "\$0")" && pwd -P)
+          else
+            DIR=\$(dirname "\$(readlink -f -- "\$0")")
+          fi
+          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
+          APPLICATION="\$INSTALL_DIR/idris2/bin/idris2"
+          
+          if [ ! -x "\$APPLICATION" ]; then
+            echo "[ fatal ] idris2 binary not found" >&2
             exit 2
           fi
-          export IDRIS2_PACKAGE_PATH="$("$PACK_BIN" package-path)"
-          export IDRIS2_LIBS="$("$PACK_BIN" libs-path)"
-          export IDRIS2_DATA="$("$PACK_BIN" data-path)"
-          exec "$APPLICATION" "$@"
-          IDRIS2_SCRIPT
+          
+          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-0.7.0"
+          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
+          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-0.7.0/lib"
+          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-0.7.0/support"
+          
+          exec "\$APPLICATION" "\$@"
+          WRAPPER
           chmod +x ~/.local/bin/idris2
+          
+          # Create standalone idris2-lsp wrapper (macOS compatible)
+          cat > ~/.local/bin/idris2-lsp << WRAPPER
+          #!/bin/sh
+          set -e
+          if [ "\$(uname)" = Darwin ]; then
+            DIR=\$(cd "\$(dirname "\$0")" && pwd -P)
+          else
+            DIR=\$(dirname "\$(readlink -f -- "\$0")")
+          fi
+          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
+          APPLICATION="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp"
+          
+          if [ ! -x "\$APPLICATION" ]; then
+            echo "[ fatal ] idris2-lsp binary not found" >&2
+            exit 2
+          fi
+          
+          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-0.7.0"
+          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
+          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-0.7.0/lib"
+          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-0.7.0/support"
+          export LD_LIBRARY_PATH="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp_app:\$LD_LIBRARY_PATH"
+          export DYLD_LIBRARY_PATH="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp_app:\$DYLD_LIBRARY_PATH"
+          
+          exec "\$APPLICATION" "\$@"
+          WRAPPER
+          chmod +x ~/.local/bin/idris2-lsp
 
       - name: Create archive
         run: |
@@ -206,6 +289,7 @@ jobs:
             .local/bin/pack \
             .local/bin/pack_app \
             .local/bin/idris2 \
+            .local/bin/idris2-lsp \
             .local/state/pack \
             .config/pack \
             .cache/pack
@@ -257,6 +341,11 @@ jobs:
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           idris2 --version
+
+      - name: Test idris2-lsp --version
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          idris2-lsp --version
 
       - name: Test compile Hello World
         run: |

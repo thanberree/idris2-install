@@ -257,7 +257,7 @@ fi
 export PATH="$HOME/.local/bin:$PATH"
 
 # Vérification finale
-if command -v pack &>/dev/null && command -v idris2 &>/dev/null; then
+if command -v pack &>/dev/null && command -v idris2 &>/dev/null && command -v idris2-lsp &>/dev/null; then
   echo ""
   info "Installation terminée avec succès !"
   echo ""
@@ -268,7 +268,7 @@ if command -v pack &>/dev/null && command -v idris2 &>/dev/null; then
   # (c'est-à-dire si .local/bin était déjà dans le PATH de l'utilisateur)
   ORIGINAL_PATH="${PATH#$HOME/.local/bin:}"
   if PATH="$ORIGINAL_PATH" command -v pack &>/dev/null; then
-    info "Les commandes pack et idris2 sont prêtes à l'emploi."
+    info "Les commandes pack, idris2 et idris2-lsp sont prêtes à l'emploi."
   else
     echo -e "${YELLOW}Pour utiliser Idris2, ouvrez un nouveau terminal ou tapez:${NC}"
     echo "  source ~/.bashrc"
@@ -276,7 +276,8 @@ if command -v pack &>/dev/null && command -v idris2 &>/dev/null; then
     echo "Puis vérifiez avec:"
     echo "  pack info"
     echo "  idris2 --version"
+    echo "  idris2-lsp --version"
   fi
 else
-  error "Problème lors de l'installation. Les commandes pack/idris2 ne sont pas accessibles."
+  error "Problème lors de l'installation. Les commandes pack, idris2 et/ou idris2-lsp ne sont pas accessibles."
 fi
