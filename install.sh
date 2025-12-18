@@ -243,6 +243,13 @@ fi
 rm -f "$TEMP_ARCHIVE"
 TEMP_ARCHIVE=""
 
+# Supprimer le cache git incomplet
+# L'archive contient .cache/pack/git/ sans les dossiers .git, ce qui casse pack install-app
+if [[ -d "$HOME/.cache/pack/git" ]]; then
+  info "Nettoyage du cache git incomplet..."
+  rm -rf "$HOME/.cache/pack/git"
+fi
+
 # Corriger les chemins codés en dur dans les scripts wrapper
 # Les binaires générés par pack contiennent des chemins absolus vers le HOME de la machine de build
 info "Correction des chemins dans les scripts..."
@@ -425,14 +432,8 @@ elif [[ "$PACK_OK" == "1" ]] && [[ "$IDRIS2_OK" == "1" ]] && [[ "$LSP_OK" == "0"
     echo ""
     # Vérifier si git est installé
     if ! command -v git &>/dev/null; then
-      echo -e "    ${YELLOW}1. Installez d'abord git :${NC}"
+      echo -e "    ${YELLOW}Installez d'abord git :${NC}"
       echo "       sudo apt install git"
-      echo ""
-    fi
-    # Nettoyer le cache git incomplet (l'archive ne contient pas les dossiers .git)
-    if [[ -d "$HOME/.cache/pack/git" ]]; then
-      echo -e "    ${YELLOW}Nettoyez d'abord le cache incomplet :${NC}"
-      echo "       rm -rf ~/.cache/pack/git"
       echo ""
     fi
     echo -e "    ${YELLOW}Puis installez idris2-lsp :${NC}"
