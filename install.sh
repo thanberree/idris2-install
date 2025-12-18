@@ -242,6 +242,25 @@ fi
 rm -f "$TEMP_ARCHIVE"
 TEMP_ARCHIVE=""
 
+# Corriger les chemins codés en dur dans les scripts wrapper
+# Les binaires générés par pack contiennent des chemins absolus vers le HOME de la machine de build
+info "Correction des chemins dans les scripts..."
+for script in "$HOME/.local/bin/pack" "$HOME/.local/bin/idris2" "$HOME/.local/bin/idris2-lsp"; do
+  if [[ -f "$script" ]]; then
+    # Remplacer tout chemin /home/*/. par $HOME/.
+    sed -i "s|/home/[^/]*/\\.local/|$HOME/.local/|g" "$script"
+  fi
+done
+
+# Corriger aussi les chemins dans pack_app si présent
+if [[ -d "$HOME/.local/bin/pack_app" ]]; then
+  for script in "$HOME/.local/bin/pack_app/"*; do
+    if [[ -f "$script" ]]; then
+      sed -i "s|/home/[^/]*/\\.local/|$HOME/.local/|g" "$script"
+    fi
+  done
+fi
+
 # PATH
 if ! grep -q '.local/bin' "$HOME/.bashrc" 2>/dev/null; then
   echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
@@ -256,8 +275,44 @@ fi
 
 export PATH="$HOME/.local/bin:$PATH"
 
-# Vérification finale
-if command -v pack &>/dev/null && command -v idris2 &>/dev/null && command -v idris2-lsp &>/dev/null; then
+# Vérification finale détaillée
+echo ""
+info "Vérification de l'installation..."
+
+INSTALL_OK=1
+MISSING_CMDS=""
+
+# Vérifier chaque commande individuellement
+for cmd in pack idris2 idris2-lsp; do
+  if ! command -v "$cmd" &>/dev/null; then
+    MISSING_CMDS="$MISSING_CMDS $cmd"
+    INSTALL_OK=0
+    
+    # Diagnostic détaillé
+    echo ""
+    error_msg="${RED}[ERREUR]${NC} $cmd n'est pas accessible."
+    echo -e "$error_msg"
+    
+    # Vérifier si le fichier existe
+    if [[ -f "$HOME/.local/bin/$cmd" ]]; then
+      echo "  → Le fichier existe: $HOME/.local/bin/$cmd"
+      if [[ -x "$HOME/.local/bin/$cmd" ]]; then
+        echo "  → Le fichier est exécutable"
+        echo "  → Problème probable: PATH non configuré correctement"
+        echo "  → Contenu actuel du PATH: $PATH"
+      else
+        echo "  → Le fichier n'est PAS exécutable"
+        echo "  → Correction: chmod +x $HOME/.local/bin/$cmd"
+        chmod +x "$HOME/.local/bin/$cmd"
+      fi
+    else
+      echo "  → Le fichier n'existe PAS dans $HOME/.local/bin/"
+      echo "  → L'archive téléchargée ne contenait peut-être pas ce binaire"
+    fi
+  fi
+done
+
+if [[ "$INSTALL_OK" == "1" ]]; then
   echo ""
   info "Installation terminée avec succès !"
   echo ""
@@ -265,7 +320,6 @@ if command -v pack &>/dev/null && command -v idris2 &>/dev/null && command -v id
   echo ""
   
   # Vérifier si pack/idris2 sont accessibles sans le PATH modifié
-  # (c'est-à-dire si .local/bin était déjà dans le PATH de l'utilisateur)
   ORIGINAL_PATH="${PATH#$HOME/.local/bin:}"
   if PATH="$ORIGINAL_PATH" command -v pack &>/dev/null; then
     info "Les commandes pack, idris2 et idris2-lsp sont prêtes à l'emploi."
@@ -279,5 +333,17 @@ if command -v pack &>/dev/null && command -v idris2 &>/dev/null && command -v id
     echo "  idris2-lsp --version"
   fi
 else
-  error "Problème lors de l'installation. Les commandes pack, idris2 et/ou idris2-lsp ne sont pas accessibles."
+  echo ""
+  echo -e "${RED}══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${RED}INSTALLATION INCOMPLÈTE${NC}"
+  echo -e "${RED}══════════════════════════════════════════════════════════════${NC}"
+  echo ""
+  echo "Les commandes suivantes ne sont pas accessibles:$MISSING_CMDS"
+  echo ""
+  echo "Solutions possibles:"
+  echo "  1. Rechargez votre shell: source ~/.bashrc"
+  echo "  2. Vérifiez que ~/.local/bin est dans votre PATH"
+  echo "  3. Réinstallez avec: curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install.sh | bash -s -- --force"
+  echo ""
+  exit 1
 fi
