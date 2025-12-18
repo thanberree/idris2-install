@@ -428,12 +428,18 @@ elif [[ "$PACK_OK" == "1" ]] && [[ "$IDRIS2_OK" == "1" ]] && [[ "$LSP_OK" == "0"
       echo -e "    ${YELLOW}1. Installez d'abord git :${NC}"
       echo "       sudo apt install git"
       echo ""
-      echo -e "    ${YELLOW}2. Puis installez idris2-lsp :${NC}"
     fi
-    echo -e "    ${YELLOW}pack install-app idris2-lsp${NC}"
+    # Nettoyer le cache git incomplet (l'archive ne contient pas les dossiers .git)
+    if [[ -d "$HOME/.cache/pack/git" ]]; then
+      echo -e "    ${YELLOW}Nettoyez d'abord le cache incomplet :${NC}"
+      echo "       rm -rf ~/.cache/pack/git"
+      echo ""
+    fi
+    echo -e "    ${YELLOW}Puis installez idris2-lsp :${NC}"
+    echo "       pack install-app idris2-lsp"
     echo ""
     echo "  Note: Cette commande télécharge et compile idris2-lsp depuis les sources."
-    echo "  Cela nécessite git et une connexion internet."
+    echo "  Cela nécessite git et une connexion internet (~5-10 min)."
   fi
   echo ""
   
