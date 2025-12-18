@@ -67,6 +67,22 @@ echo ""
 [[ "${EUID:-$(id -u)}" -eq 0 ]] && error "Ne pas exécuter en root."
 command -v curl &>/dev/null || error "curl est requis. Installez-le avec: sudo apt install curl"
 
+# Mapper les codenames dérivés vers leur base Ubuntu/Debian
+map_codename() {
+  local codename="$1"
+  case "$codename" in
+    # Linux Mint -> Ubuntu
+    virginia|vera|vanessa|uma|ulyssa|ulyana) echo "jammy" ;;  # Mint 21.x -> Ubuntu 22.04
+    wilma|faye) echo "noble" ;;  # Mint 22.x -> Ubuntu 24.04
+    # Pop!_OS -> Ubuntu
+    jammy|noble|focal|bionic) echo "$codename" ;;
+    # Debian
+    bookworm|bullseye|buster) echo "$codename" ;;
+    # Fedora (pas de codename, utiliser ID)
+    *) echo "$codename" ;;
+  esac
+}
+
 # Détecter l'OS et choisir la bonne archive
 detect_archive_url() {
   if [[ -n "${ARCHIVE_URL:-}" ]]; then
@@ -75,12 +91,30 @@ detect_archive_url() {
     return
   fi
   
-  local os_type arch codename
+  local os_type arch codename distro_id
   os_type=$(uname -s)
   arch=$(uname -m)
   
   case "$os_type" in
     Linux)
+      # Détecter l'ID de la distribution
+      if [[ -f /etc/os-release ]]; then
+        distro_id=$(grep "^ID=" /etc/os-release | cut -d= -f2 | tr -d '"')
+      fi
+      
+      # Gérer Fedora/Arch différemment
+      case "$distro_id" in
+        fedora)
+          echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-fedora-full.tar.gz"
+          return
+          ;;
+        arch|manjaro)
+          echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-arch-full.tar.gz"
+          return
+          ;;
+      esac
+      
+      # Pour Debian/Ubuntu et dérivés
       if command -v lsb_release &>/dev/null; then
         codename=$(lsb_release -cs)
       elif [[ -f /etc/os-release ]]; then
@@ -88,6 +122,9 @@ detect_archive_url() {
       else
         codename="noble"  # fallback Ubuntu 24.04
       fi
+      
+      # Mapper vers la base Ubuntu/Debian
+      codename=$(map_codename "$codename")
       echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-${codename}-full.tar.gz"
       ;;
     Darwin)
@@ -98,7 +135,7 @@ detect_archive_url() {
       fi
       ;;
     *)
-      error "OS non supporté: $os_type. Seuls Linux (Ubuntu) et macOS sont supportés."
+      error "OS non supporté: $os_type. Seuls Linux (Ubuntu/Debian/Fedora/Arch) et macOS sont supportés."
       ;;
   esac
 }
