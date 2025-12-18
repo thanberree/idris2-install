@@ -189,6 +189,7 @@ fi
 # Vérifier outils nécessaires
 command -v timeout &>/dev/null || APT_PACKAGES="$APT_PACKAGES coreutils"
 command -v unzip &>/dev/null || APT_PACKAGES="$APT_PACKAGES unzip"
+command -v git &>/dev/null || APT_PACKAGES="$APT_PACKAGES git"
 
 # Installer tous les paquets apt en une seule fois
 if [[ -n "$APT_PACKAGES" ]]; then
@@ -422,10 +423,17 @@ elif [[ "$PACK_OK" == "1" ]] && [[ "$IDRIS2_OK" == "1" ]] && [[ "$LSP_OK" == "0"
     echo ""
     echo "  Pour installer idris2-lsp (compilation ~5-10 minutes) :"
     echo ""
+    # Vérifier si git est installé
+    if ! command -v git &>/dev/null; then
+      echo -e "    ${YELLOW}1. Installez d'abord git :${NC}"
+      echo "       sudo apt install git"
+      echo ""
+      echo -e "    ${YELLOW}2. Puis installez idris2-lsp :${NC}"
+    fi
     echo -e "    ${YELLOW}pack install-app idris2-lsp${NC}"
     echo ""
     echo "  Note: Cette commande télécharge et compile idris2-lsp depuis les sources."
-    echo "  Cela nécessite une connexion internet et peut prendre plusieurs minutes."
+    echo "  Cela nécessite git et une connexion internet."
   fi
   echo ""
   
