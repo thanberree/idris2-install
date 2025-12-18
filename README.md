@@ -1,11 +1,13 @@
-# Idris2 + pack — Pre-compiled binaries
+# Idris2 + pack — Binaires pré-compilés
 
-Pre-compiled binaries for [Idris2](https://www.idris-lang.org/) and [pack](https://github.com/stefan-hoeck/idris2-pack) package manager.
+🇬🇧 *[English version](README-EN.md)*
 
-**Collection:** `nightly-250828` (Idris2 0.7.0)  
-**Platforms:** Ubuntu 24.04 (noble)
+Binaires pré-compilés pour [Idris2](https://www.idris-lang.org/) et le gestionnaire de paquets [pack](https://github.com/stefan-hoeck/idris2-pack).
 
-> Looking for the official installation from source? See [idris2-pack install guide](https://github.com/stefan-hoeck/idris2-pack/blob/main/INSTALL.md).
+**Collection :** `nightly-250828` (Idris2 0.7.0)  
+**Plateformes :** Ubuntu 24.04 (noble)
+
+> Vous cherchez l'installation officielle depuis les sources ? Voir le [guide d'installation idris2-pack](https://github.com/stefan-hoeck/idris2-pack/blob/main/INSTALL.md).
 
 ## Installation
 
@@ -13,35 +15,41 @@ Pre-compiled binaries for [Idris2](https://www.idris-lang.org/) and [pack](https
 curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install.sh | bash
 ```
 
-Then open a new terminal (or run `source ~/.bashrc`) and verify:
+Ouvrez ensuite un nouveau terminal (ou exécutez `source ~/.bashrc`) et vérifiez :
 ```bash
 pack info
 idris2 --version
 idris2-lsp --version
 ```
 
-### Reinstall
+### Réinstallation
 
-If you already have an installation and want to reinstall:
+Si vous avez déjà une installation et souhaitez réinstaller :
 ```bash
 curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install.sh | bash -s -- --force
 ```
 
-## Uninstall
+## Désinstallation
 
 ```bash
-rm -rf ~/.local/bin/pack ~/.local/bin/pack_app ~/.local/bin/idris2
+rm -rf ~/.local/bin/pack ~/.local/bin/pack_app ~/.local/bin/idris2 ~/.local/bin/idris2-lsp
 rm -rf ~/.local/state/pack ~/.config/pack ~/.cache/pack
 ```
 
-## What's included
+## Contenu
 
-The archive contains:
-- Idris2 compiler (0.7.0)
-- pack package manager
-- Pre-built libraries: base, contrib, linear, network, prelude
-- Additional packages: ansi, containers, elab-pretty, elab-util, getopts, hedgehog, prettier-ansi, pretty-show, prim, sop
+L'archive contient :
+- Compilateur Idris2 (0.7.0)
+- Gestionnaire de paquets pack
+- idris2-lsp (serveur LSP pour VS Code)
+- Bibliothèques pré-compilées : base, contrib, linear, network, prelude
+- Paquets additionnels : ansi, containers, elab-pretty, elab-util, getopts, hedgehog, prettier-ansi, pretty-show, prim, sop
 
-## License
+## Utilisation avec VS Code
 
-The installation scripts are provided as-is. Idris2 and pack are subject to their respective licenses.
+1. Installez l'extension [Idris2-LSP](https://marketplace.visualstudio.com/items?itemName=meraymond.idris-vscode) dans VS Code
+2. L'extension devrait automatiquement détecter `idris2-lsp` si votre PATH est configuré
+
+## Licence
+
+Les scripts d'installation sont fournis tels quels. Idris2 et pack sont soumis à leurs licences respectives.
