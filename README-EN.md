@@ -5,7 +5,7 @@
 Pre-compiled binaries for [Idris2](https://www.idris-lang.org/) and [pack](https://github.com/stefan-hoeck/idris2-pack) package manager.
 
 **Collection:** `nightly-250828` (Idris2 0.7.0)  
-**Platforms:** Ubuntu 24.04 (noble)
+**Platforms:** Ubuntu 22.04 (jammy), Ubuntu 24.04 (noble)
 
 > Looking for the official installation from source? See [idris2-pack install guide](https://github.com/stefan-hoeck/idris2-pack/blob/main/INSTALL.md).
 
