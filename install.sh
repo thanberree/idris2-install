@@ -306,12 +306,12 @@ show_install_summary() {
   
   # Afficher les informations sur pack
   if [[ "$PACK_OK" == "1" ]]; then
-    local pack_version
-    pack_version=$(pack --version 2>/dev/null | head -1 || echo "version inconnue")
+    # pack n'a pas d'option --version, on utilise pack info pour obtenir la collection
+    local pack_collection
+    pack_collection=$(pack info 2>/dev/null | grep -i "collection" | head -1 || echo "$COLLECTION")
     echo -e "  ${GREEN}✓${NC} pack           : installé"
     echo "                    Chemin  : $HOME/.local/bin/pack"
-    echo "                    Version : $pack_version"
-    echo "                    Collection : $COLLECTION"
+    echo "                    $pack_collection"
   else
     echo -e "  ${RED}✗${NC} pack           : NON INSTALLÉ"
   fi
@@ -418,11 +418,14 @@ elif [[ "$PACK_OK" == "1" ]] && [[ "$IDRIS2_OK" == "1" ]] && [[ "$LSP_OK" == "0"
     fi
   else
     echo "  Diagnostic :"
-    echo "    → Le fichier n'existe pas dans $HOME/.local/bin/"
-    echo "    → L'archive ne contenait peut-être pas idris2-lsp"
+    echo "    → Le fichier idris2-lsp n'est pas inclus dans l'archive pré-compilée"
     echo ""
-    echo "  Solution : réinstallez avec --force ou installez manuellement :"
-    echo "    pack install-app idris2-lsp"
+    echo "  Pour installer idris2-lsp (compilation ~5-10 minutes) :"
+    echo ""
+    echo -e "    ${YELLOW}pack install-app idris2-lsp${NC}"
+    echo ""
+    echo "  Note: Cette commande télécharge et compile idris2-lsp depuis les sources."
+    echo "  Cela nécessite une connexion internet et peut prendre plusieurs minutes."
   fi
   echo ""
   
