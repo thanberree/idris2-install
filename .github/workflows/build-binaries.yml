@@ -107,7 +107,8 @@ jobs:
       - name: Create archive
         run: |
           cd ~
-          tar --exclude='.git' -czvf idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}-full.tar.gz \
+          # Exclure .cache/pack/git qui contient des dossiers sans .git (cause des erreurs)
+          tar --exclude='.git' --exclude='.cache/pack/git' -czvf idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}-full.tar.gz \
             .local/bin/pack \
             .local/bin/pack_app \
             .local/bin/idris2 \
