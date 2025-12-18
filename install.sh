@@ -279,71 +279,203 @@ export PATH="$HOME/.local/bin:$PATH"
 echo ""
 info "Vérification de l'installation..."
 
-INSTALL_OK=1
-MISSING_CMDS=""
+# Vérifier les commandes essentielles (pack et idris2)
+PACK_OK=0
+IDRIS2_OK=0
+LSP_OK=0
 
-# Vérifier chaque commande individuellement
-for cmd in pack idris2 idris2-lsp; do
-  if ! command -v "$cmd" &>/dev/null; then
-    MISSING_CMDS="$MISSING_CMDS $cmd"
-    INSTALL_OK=0
-    
-    # Diagnostic détaillé
-    echo ""
-    error_msg="${RED}[ERREUR]${NC} $cmd n'est pas accessible."
-    echo -e "$error_msg"
-    
-    # Vérifier si le fichier existe
-    if [[ -f "$HOME/.local/bin/$cmd" ]]; then
-      echo "  → Le fichier existe: $HOME/.local/bin/$cmd"
-      if [[ -x "$HOME/.local/bin/$cmd" ]]; then
-        echo "  → Le fichier est exécutable"
-        echo "  → Problème probable: PATH non configuré correctement"
-        echo "  → Contenu actuel du PATH: $PATH"
-      else
-        echo "  → Le fichier n'est PAS exécutable"
-        echo "  → Correction: chmod +x $HOME/.local/bin/$cmd"
-        chmod +x "$HOME/.local/bin/$cmd"
-      fi
-    else
-      echo "  → Le fichier n'existe PAS dans $HOME/.local/bin/"
-      echo "  → L'archive téléchargée ne contenait peut-être pas ce binaire"
-    fi
-  fi
-done
+if command -v pack &>/dev/null; then
+  PACK_OK=1
+fi
 
-if [[ "$INSTALL_OK" == "1" ]]; then
+if command -v idris2 &>/dev/null; then
+  IDRIS2_OK=1
+fi
+
+if command -v idris2-lsp &>/dev/null; then
+  LSP_OK=1
+fi
+
+# Fonction pour afficher le résumé de l'installation
+show_install_summary() {
   echo ""
-  info "Installation terminée avec succès !"
-  echo ""
-  pack info
+  echo -e "${GREEN}══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${GREEN}           RÉSUMÉ DE L'INSTALLATION${NC}"
+  echo -e "${GREEN}══════════════════════════════════════════════════════════════${NC}"
   echo ""
   
-  # Vérifier si pack/idris2 sont accessibles sans le PATH modifié
-  ORIGINAL_PATH="${PATH#$HOME/.local/bin:}"
-  if PATH="$ORIGINAL_PATH" command -v pack &>/dev/null; then
-    info "Les commandes pack, idris2 et idris2-lsp sont prêtes à l'emploi."
+  # Afficher les informations sur pack
+  if [[ "$PACK_OK" == "1" ]]; then
+    local pack_version
+    pack_version=$(pack --version 2>/dev/null | head -1 || echo "version inconnue")
+    echo -e "  ${GREEN}✓${NC} pack           : installé"
+    echo "                    Chemin  : $HOME/.local/bin/pack"
+    echo "                    Version : $pack_version"
+    echo "                    Collection : $COLLECTION"
   else
-    echo -e "${YELLOW}Pour utiliser Idris2, ouvrez un nouveau terminal ou tapez:${NC}"
-    echo "  source ~/.bashrc"
-    echo ""
-    echo "Puis vérifiez avec:"
-    echo "  pack info"
-    echo "  idris2 --version"
-    echo "  idris2-lsp --version"
+    echo -e "  ${RED}✗${NC} pack           : NON INSTALLÉ"
   fi
+  echo ""
+  
+  # Afficher les informations sur idris2
+  if [[ "$IDRIS2_OK" == "1" ]]; then
+    local idris2_version
+    idris2_version=$(idris2 --version 2>/dev/null | head -1 || echo "version inconnue")
+    echo -e "  ${GREEN}✓${NC} idris2         : installé"
+    echo "                    Chemin  : $HOME/.local/bin/idris2"
+    echo "                    Version : $idris2_version"
+  else
+    echo -e "  ${RED}✗${NC} idris2         : NON INSTALLÉ"
+  fi
+  echo ""
+  
+  # Afficher les informations sur idris2-lsp
+  if [[ "$LSP_OK" == "1" ]]; then
+    local lsp_version
+    lsp_version=$(idris2-lsp --version 2>/dev/null | head -1 || echo "version inconnue")
+    echo -e "  ${GREEN}✓${NC} idris2-lsp     : installé"
+    echo "                    Chemin  : $HOME/.local/bin/idris2-lsp"
+    echo "                    Version : $lsp_version"
+  else
+    echo -e "  ${YELLOW}✗${NC} idris2-lsp     : NON INSTALLÉ"
+  fi
+  echo ""
+  
+  # Afficher ce qui a été ajouté au PATH
+  echo -e "${GREEN}──────────────────────────────────────────────────────────────${NC}"
+  echo "  Configuration du PATH :"
+  echo ""
+  echo "  La ligne suivante a été ajoutée à votre fichier de configuration :"
+  echo -e "    ${YELLOW}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
+  echo ""
+  if [[ -f "$HOME/.bashrc" ]]; then
+    echo "    → ~/.bashrc : configuré"
+  fi
+  if [[ -f "$HOME/.zshrc" ]]; then
+    echo "    → ~/.zshrc  : configuré"
+  fi
+  echo ""
+}
+
+# Cas 1 : Tout est installé
+if [[ "$PACK_OK" == "1" ]] && [[ "$IDRIS2_OK" == "1" ]] && [[ "$LSP_OK" == "1" ]]; then
+  show_install_summary
+  
+  echo -e "${GREEN}══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${GREEN}           INSTALLATION COMPLÈTE !${NC}"
+  echo -e "${GREEN}══════════════════════════════════════════════════════════════${NC}"
+  echo ""
+  echo "  Vous pouvez maintenant :"
+  echo "    • Compiler et exécuter des projets Idris2 avec pack"
+  echo "    • Utiliser VS Code avec l'extension Idris pour un retour en continu"
+  echo ""
+  
+  # Vérifier si on doit recharger le shell
+  ORIGINAL_PATH="${PATH#$HOME/.local/bin:}"
+  if ! PATH="$ORIGINAL_PATH" command -v pack &>/dev/null; then
+    echo -e "${YELLOW}  ⚠ Pour utiliser Idris2, ouvrez un nouveau terminal ou tapez:${NC}"
+    echo "      source ~/.bashrc"
+    echo ""
+  fi
+
+# Cas 2 : pack et idris2 OK, mais pas idris2-lsp
+elif [[ "$PACK_OK" == "1" ]] && [[ "$IDRIS2_OK" == "1" ]] && [[ "$LSP_OK" == "0" ]]; then
+  show_install_summary
+  
+  echo -e "${GREEN}══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${GREEN}           INSTALLATION FONCTIONNELLE${NC}"
+  echo -e "${GREEN}══════════════════════════════════════════════════════════════${NC}"
+  echo ""
+  echo -e "  ${GREEN}✓ pack et idris2 sont correctement installés !${NC}"
+  echo ""
+  echo "  Vous pouvez dès maintenant :"
+  echo "    • Compiler des projets Idris2 :  pack build <projet>"
+  echo "    • Exécuter des projets Idris2 :  pack run <projet>"
+  echo "    • Lancer le REPL Idris2       :  pack repl"
+  echo ""
+  echo -e "${YELLOW}──────────────────────────────────────────────────────────────${NC}"
+  echo -e "${YELLOW}  ⚠ idris2-lsp n'est pas installé${NC}"
+  echo -e "${YELLOW}──────────────────────────────────────────────────────────────${NC}"
+  echo ""
+  echo "  Cela n'empêche PAS d'exécuter vos projets Idris2."
+  echo ""
+  echo "  Cependant, sans idris2-lsp, vous n'aurez pas de retour en continu"
+  echo "  dans VS Code (erreurs soulignées, autocomplétion, etc.)."
+  echo ""
+  
+  # Diagnostic du problème idris2-lsp
+  if [[ -f "$HOME/.local/bin/idris2-lsp" ]]; then
+    echo "  Diagnostic :"
+    echo "    → Le fichier existe : $HOME/.local/bin/idris2-lsp"
+    if [[ -x "$HOME/.local/bin/idris2-lsp" ]]; then
+      echo "    → Le fichier est exécutable"
+      echo "    → Essayez de l'exécuter manuellement pour voir l'erreur :"
+      echo "        $HOME/.local/bin/idris2-lsp --version"
+    else
+      echo "    → Le fichier n'est PAS exécutable. Correction..."
+      chmod +x "$HOME/.local/bin/idris2-lsp"
+      echo "    → Permissions corrigées. Réessayez l'installation."
+    fi
+  else
+    echo "  Diagnostic :"
+    echo "    → Le fichier n'existe pas dans $HOME/.local/bin/"
+    echo "    → L'archive ne contenait peut-être pas idris2-lsp"
+    echo ""
+    echo "  Solution : réinstallez avec --force ou installez manuellement :"
+    echo "    pack install-app idris2-lsp"
+  fi
+  echo ""
+  
+  # Vérifier si on doit recharger le shell
+  ORIGINAL_PATH="${PATH#$HOME/.local/bin:}"
+  if ! PATH="$ORIGINAL_PATH" command -v pack &>/dev/null; then
+    echo -e "${YELLOW}  Pour utiliser Idris2, ouvrez un nouveau terminal ou tapez:${NC}"
+    echo "      source ~/.bashrc"
+    echo ""
+  fi
+
+# Cas 3 : pack ou idris2 manquant (problème critique)
 else
   echo ""
   echo -e "${RED}══════════════════════════════════════════════════════════════${NC}"
-  echo -e "${RED}INSTALLATION INCOMPLÈTE${NC}"
+  echo -e "${RED}           ERREUR D'INSTALLATION${NC}"
   echo -e "${RED}══════════════════════════════════════════════════════════════${NC}"
   echo ""
-  echo "Les commandes suivantes ne sont pas accessibles:$MISSING_CMDS"
-  echo ""
-  echo "Solutions possibles:"
-  echo "  1. Rechargez votre shell: source ~/.bashrc"
-  echo "  2. Vérifiez que ~/.local/bin est dans votre PATH"
-  echo "  3. Réinstallez avec: curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install.sh | bash -s -- --force"
+  
+  if [[ "$PACK_OK" == "0" ]]; then
+    echo -e "  ${RED}✗ pack n'est pas accessible${NC}"
+    if [[ -f "$HOME/.local/bin/pack" ]]; then
+      echo "    → Le fichier existe : $HOME/.local/bin/pack"
+      if [[ ! -x "$HOME/.local/bin/pack" ]]; then
+        echo "    → Le fichier n'est pas exécutable. Correction..."
+        chmod +x "$HOME/.local/bin/pack"
+      fi
+      echo "    → Problème probable : PATH non configuré"
+    else
+      echo "    → Le fichier n'existe pas dans $HOME/.local/bin/"
+    fi
+    echo ""
+  fi
+  
+  if [[ "$IDRIS2_OK" == "0" ]]; then
+    echo -e "  ${RED}✗ idris2 n'est pas accessible${NC}"
+    if [[ -f "$HOME/.local/bin/idris2" ]]; then
+      echo "    → Le fichier existe : $HOME/.local/bin/idris2"
+      if [[ ! -x "$HOME/.local/bin/idris2" ]]; then
+        echo "    → Le fichier n'est pas exécutable. Correction..."
+        chmod +x "$HOME/.local/bin/idris2"
+      fi
+      echo "    → Problème probable : PATH non configuré"
+    else
+      echo "    → Le fichier n'existe pas dans $HOME/.local/bin/"
+    fi
+    echo ""
+  fi
+  
+  echo "  Solutions possibles :"
+  echo "    1. Rechargez votre shell : source ~/.bashrc"
+  echo "    2. Vérifiez que ~/.local/bin est dans votre PATH"
+  echo "    3. Réinstallez : curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install.sh | bash -s -- --force"
   echo ""
   exit 1
 fi
