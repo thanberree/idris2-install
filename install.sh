@@ -261,8 +261,29 @@ map_package_name() {
 }
 
 # Vérifier Chez Scheme
+# Note: sur Arch, chez-scheme n'est pas dans les dépôts officiels mais dans AUR
 if ! command -v chezscheme &>/dev/null && ! command -v chez &>/dev/null && ! command -v scheme &>/dev/null; then
-  PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name chezscheme)"
+  if [[ "$PKG_MANAGER" == "pacman" ]]; then
+    # Sur Arch, installer depuis AUR
+    info "Chez Scheme n'est pas dans les dépôts officiels Arch. Installation depuis AUR..."
+    if ! command -v yay &>/dev/null && ! command -v paru &>/dev/null; then
+      # Installer yay si aucun AUR helper n'est présent
+      info "Installation de yay (AUR helper)..."
+      sudo pacman -S --noconfirm --needed base-devel git
+      TEMP_YAY=$(mktemp -d)
+      git clone https://aur.archlinux.org/yay.git "$TEMP_YAY"
+      (cd "$TEMP_YAY" && makepkg -si --noconfirm)
+      rm -rf "$TEMP_YAY"
+    fi
+    # Utiliser yay ou paru pour installer chez-scheme
+    if command -v yay &>/dev/null; then
+      yay -S --noconfirm chez-scheme
+    elif command -v paru &>/dev/null; then
+      paru -S --noconfirm chez-scheme
+    fi
+  else
+    PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name chezscheme)"
+  fi
 fi
 
 # Vérifier rlwrap
