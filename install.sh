@@ -201,42 +201,102 @@ if [[ -n "$OLD_INSTALL" ]] || [[ -n "$NEW_INSTALL" ]]; then
   echo ""
 fi
 
-# Collecter les paquets apt à installer
-APT_PACKAGES=""
-APT_UPDATED=0
+# Détection du gestionnaire de paquets
+PKG_MANAGER=""
+if command -v apt-get &>/dev/null; then
+  PKG_MANAGER="apt"
+elif command -v dnf &>/dev/null; then
+  PKG_MANAGER="dnf"
+elif command -v pacman &>/dev/null; then
+  PKG_MANAGER="pacman"
+fi
 
-need_apt_update() {
-  if [[ "$APT_UPDATED" == "0" ]] && command -v apt-get &>/dev/null; then
-    info "Mise à jour des sources apt..."
-    sudo apt-get update
-    APT_UPDATED=1
+# Collecter les paquets à installer
+PACKAGES_TO_INSTALL=""
+PKG_UPDATED=0
+
+need_pkg_update() {
+  if [[ "$PKG_UPDATED" == "0" ]]; then
+    case "$PKG_MANAGER" in
+      apt)
+        info "Mise à jour des sources apt..."
+        sudo apt-get update
+        ;;
+      dnf)
+        # dnf n'a pas besoin de update explicite avant install
+        ;;
+      pacman)
+        info "Mise à jour des sources pacman..."
+        sudo pacman -Sy
+        ;;
+    esac
+    PKG_UPDATED=1
   fi
+}
+
+# Fonction pour mapper les noms de paquets selon le gestionnaire
+map_package_name() {
+  local pkg="$1"
+  case "$PKG_MANAGER" in
+    apt)
+      echo "$pkg"
+      ;;
+    dnf)
+      case "$pkg" in
+        chezscheme) echo "chez-scheme" ;;
+        *) echo "$pkg" ;;
+      esac
+      ;;
+    pacman)
+      case "$pkg" in
+        chezscheme) echo "chez-scheme" ;;
+        coreutils) echo "coreutils" ;;
+        *) echo "$pkg" ;;
+      esac
+      ;;
+    *)
+      echo "$pkg"
+      ;;
+  esac
 }
 
 # Vérifier Chez Scheme
 if ! command -v chezscheme &>/dev/null && ! command -v chez &>/dev/null && ! command -v scheme &>/dev/null; then
-  APT_PACKAGES="$APT_PACKAGES chezscheme"
+  PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name chezscheme)"
 fi
 
 # Vérifier rlwrap
 if ! command -v rlwrap &>/dev/null; then
-  APT_PACKAGES="$APT_PACKAGES rlwrap"
+  PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name rlwrap)"
 fi
 
 # Vérifier outils nécessaires
-command -v timeout &>/dev/null || APT_PACKAGES="$APT_PACKAGES coreutils"
-command -v unzip &>/dev/null || APT_PACKAGES="$APT_PACKAGES unzip"
-command -v git &>/dev/null || APT_PACKAGES="$APT_PACKAGES git"
+command -v timeout &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name coreutils)"
+command -v unzip &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name unzip)"
+command -v git &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name git)"
 
-# Installer tous les paquets apt en une seule fois
-if [[ -n "$APT_PACKAGES" ]]; then
-  if command -v apt-get &>/dev/null; then
-    need_apt_update
-    info "Installation des dépendances:$APT_PACKAGES"
-    sudo apt-get install -y $APT_PACKAGES
-  else
-    error "apt-get non disponible. Installez manuellement:$APT_PACKAGES"
-  fi
+# Installer tous les paquets en une seule fois
+if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
+  PACKAGES_TO_INSTALL=$(echo "$PACKAGES_TO_INSTALL" | xargs)  # trim whitespace
+  case "$PKG_MANAGER" in
+    apt)
+      need_pkg_update
+      info "Installation des dépendances (apt): $PACKAGES_TO_INSTALL"
+      sudo apt-get install -y $PACKAGES_TO_INSTALL
+      ;;
+    dnf)
+      info "Installation des dépendances (dnf): $PACKAGES_TO_INSTALL"
+      sudo dnf install -y $PACKAGES_TO_INSTALL
+      ;;
+    pacman)
+      need_pkg_update
+      info "Installation des dépendances (pacman): $PACKAGES_TO_INSTALL"
+      sudo pacman -S --noconfirm $PACKAGES_TO_INSTALL
+      ;;
+    *)
+      error "Gestionnaire de paquets non supporté. Installez manuellement: $PACKAGES_TO_INSTALL"
+      ;;
+  esac
 fi
 
 # Vérifier que /usr/bin/chezscheme existe (le shebang des binaires en a besoin)

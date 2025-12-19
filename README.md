@@ -1,13 +1,20 @@
-# Idris2 + pack — Binaires pré-compilés
-
 🇬🇧 *[English version](README-EN.md)*
 
-Binaires pré-compilés pour [Idris2](https://www.idris-lang.org/) et le gestionnaire de paquets [pack](https://github.com/stefan-hoeck/idris2-pack).
+# Installation de binaires pré-compilés pour [Idris2](https://www.idris-lang.org/) et le gestionnaire de paquets [pack](https://github.com/stefan-hoeck/idris2-pack) [collection : `nightly-250828` (Idris2 0.7.0)]
 
-**Collection :** `nightly-250828` (Idris2 0.7.0)  
-**Plateformes :** Ubuntu 22.04 (jammy), Ubuntu 24.04 (noble)
 
 > Vous cherchez l'installation officielle depuis les sources ? Voir le [guide d'installation idris2-pack](https://github.com/stefan-hoeck/idris2-pack/blob/main/INSTALL.md).
+
+
+**Plateformes supportées :**
+| Distribution | Versions |
+|-------------|----------|
+| Ubuntu | 22.04 (jammy), 24.04 (noble) |
+| Debian | 12 (bookworm) |
+| Fedora | 40 |
+| Arch Linux | rolling |
+| Linux Mint | 21.x, 22.x (via Ubuntu) |
+
 
 ## Installation
 
