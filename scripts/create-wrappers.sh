@@ -14,19 +14,26 @@ echo "PLATFORM=$PLATFORM"
 echo "=== All install directories ==="
 ls -la ~/.local/state/pack/install/
 
-# Find idris2-lsp first - it tells us where everything is
-LSP_DIR=$(ls -d ~/.local/state/pack/install/*/idris2-lsp/*/ 2>/dev/null | head -1)
+# Find idris2-lsp binary first - it tells us exactly where everything is
+LSP_BIN=$(find ~/.local/state/pack/install -name "idris2-lsp" -type f -executable 2>/dev/null | head -1)
 
-if [ -z "$LSP_DIR" ]; then
-  echo "ERROR: Could not find idris2-lsp directory"
-  find ~/.local/state/pack/install -name "idris2-lsp" -type d 2>/dev/null || true
+if [ -z "$LSP_BIN" ]; then
+  echo "ERROR: Could not find idris2-lsp binary"
+  echo "Searching for any idris2-lsp..."
+  find ~/.local/state/pack/install -name "idris2-lsp" 2>/dev/null || true
   exit 1
 fi
 
-# Extract the commit and hash from the path
-# Path format: ~/.local/state/pack/install/COMMIT/idris2-lsp/HASH/
-IDRIS2_COMMIT=$(echo "$LSP_DIR" | sed 's|.*/install/\([^/]*\)/idris2-lsp/.*|\1|')
-LSP_HASH=$(basename $(dirname "$LSP_DIR"))
+echo "Found LSP binary: $LSP_BIN"
+
+# Path format: ~/.local/state/pack/install/COMMIT/idris2-lsp/HASH/bin/idris2-lsp
+# Extract COMMIT and HASH from the path
+LSP_BIN_DIR=$(dirname "$LSP_BIN")                    # .../HASH/bin
+LSP_HASH_DIR=$(dirname "$LSP_BIN_DIR")               # .../HASH
+LSP_HASH=$(basename "$LSP_HASH_DIR")                 # HASH
+LSP_PARENT=$(dirname "$LSP_HASH_DIR")                # .../idris2-lsp
+COMMIT_DIR=$(dirname "$LSP_PARENT")                   # .../COMMIT
+IDRIS2_COMMIT=$(basename "$COMMIT_DIR")              # COMMIT
 
 echo "IDRIS2_COMMIT=$IDRIS2_COMMIT"
 echo "LSP_HASH=$LSP_HASH"
