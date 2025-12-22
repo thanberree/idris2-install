@@ -1,0 +1,49 @@
+name: macOS SSH Development Session
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeout_minutes:
+        description: 'Session timeout (minutes, max 360)'
+        default: '180'
+        required: true
+
+jobs:
+  macos-ssh:
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show system info
+        run: |
+          echo "Runner: macos-14 (Apple Silicon)"
+          echo "Architecture: $(uname -m)"
+          sw_vers
+          echo "Disk space:"
+          df -h /
+
+      - name: Install Chez Scheme via Homebrew
+        run: |
+          brew install chezscheme
+          BREW_PREFIX=$(brew --prefix)
+          sudo mkdir -p /usr/local/bin
+          sudo ln -sf "$BREW_PREFIX/bin/chez" /usr/local/bin/chezscheme
+          sudo ln -sf "$BREW_PREFIX/bin/chez" /usr/local/bin/chez
+          echo "Chez Scheme installed:"
+          which chez chezscheme
+          chez --version
+
+      - name: Open SSH session
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: ${{ fromJSON(inputs.timeout_minutes) }}
+        with:
+          limit-access-to-actor: true
+
+      - name: Upload any artifacts from ~/artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build-artifacts
+          path: ~/artifacts/
+          if-no-files-found: ignore
