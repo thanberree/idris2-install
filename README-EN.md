@@ -9,12 +9,14 @@ Pre-compiled binaries for [Idris2](https://www.idris-lang.org/) and [pack](https
 **Supported platforms:**
 | Platform | Versions |
 |----------|----------|
-| **macOS** | Apple Silicon (M1/M2/M3), Intel x86_64 |
+| **macOS** | Apple Silicon (M1/M2/M3/M4) |
 | Ubuntu | 22.04 (jammy), 24.04 (noble) |
 | Debian | 12 (bookworm) |
 | Fedora | 40 |
 | Arch Linux | rolling |
 | Linux Mint | 21.x, 22.x (via Ubuntu) |
+
+> **macOS Intel note**: Binaries for Intel Macs (x86_64) are not yet available. Use the [installation from source](https://github.com/stefan-hoeck/idris2-pack/blob/main/INSTALL.md).
 
 > Looking for the official installation from source? See [idris2-pack install guide](https://github.com/stefan-hoeck/idris2-pack/blob/main/INSTALL.md).
 
