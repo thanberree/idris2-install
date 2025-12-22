@@ -9,14 +9,11 @@
 **Plateformes supportées :**
 | Plateforme | Versions |
 |------------|----------|
-| **macOS** | Apple Silicon (M1/M2/M3/M4) |
 | Ubuntu | 22.04 (jammy), 24.04 (noble) |
 | Debian | 12 (bookworm) |
 | Fedora | 40 |
 | Arch Linux | rolling |
 | Linux Mint | 21.x, 22.x (via Ubuntu) |
-
-> **Note macOS Intel** : Les binaires pour Mac Intel (x86_64) ne sont pas encore disponibles. Utilisez l'[installation depuis les sources](https://github.com/stefan-hoeck/idris2-pack/blob/main/INSTALL.md).
 
 
 ## Installation
@@ -31,10 +28,6 @@ pack info
 idris2 --version
 idris2-lsp --version
 ```
-
-### Prérequis macOS
-
-Sur macOS, [Homebrew](https://brew.sh) doit être installé. Le script installera automatiquement Chez Scheme via Homebrew.
 
 ### Réinstallation
 
