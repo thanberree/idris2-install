@@ -19,6 +19,10 @@ on:
           - macos-14-arm64
           - macos-13-intel
         default: 'none'
+      enable_ssh_debug:
+        description: 'Enable SSH debug session after compilation'
+        type: boolean
+        default: false
 
 # Required for gh release upload
 permissions:
@@ -66,7 +70,75 @@ jobs:
 
       - name: Create portable wrappers for idris2 and idris2-lsp
         run: |
-          bash scripts/create-wrappers.sh "${{ env.IDRIS2_VERSION }}" linux
+          IDRIS2_VERSION="${{ env.IDRIS2_VERSION }}"
+          
+          echo "=== Creating portable wrappers ==="
+          
+          # Find idris2-lsp binary first
+          LSP_BIN=$(find ~/.local/state/pack/install -name "idris2-lsp" -type f -executable 2>/dev/null | head -1)
+          
+          if [ -z "$LSP_BIN" ]; then
+            echo "ERROR: Could not find idris2-lsp binary"
+            exit 1
+          fi
+          
+          echo "Found LSP binary: $LSP_BIN"
+          
+          # Extract COMMIT and HASH from path
+          LSP_BIN_DIR=$(dirname "$LSP_BIN")
+          LSP_HASH_DIR=$(dirname "$LSP_BIN_DIR")
+          LSP_HASH=$(basename "$LSP_HASH_DIR")
+          LSP_PARENT=$(dirname "$LSP_HASH_DIR")
+          COMMIT_DIR=$(dirname "$LSP_PARENT")
+          IDRIS2_COMMIT=$(basename "$COMMIT_DIR")
+          
+          echo "IDRIS2_COMMIT=$IDRIS2_COMMIT"
+          echo "LSP_HASH=$LSP_HASH"
+          
+          # Verify paths
+          ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2/bin/idris2
+          ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2-lsp/$LSP_HASH/bin/idris2-lsp
+          
+          # Create idris2 wrapper
+          cat > ~/.local/bin/idris2 << WRAPPER
+          #!/bin/sh
+          set -e
+          DIR=\$(dirname "\$(readlink -f -- "\$0")")
+          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
+          APPLICATION="\$INSTALL_DIR/idris2/bin/idris2"
+          if [ ! -x "\$APPLICATION" ]; then
+            echo "[ fatal ] idris2 binary not found" >&2
+            exit 2
+          fi
+          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION"
+          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
+          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION/lib"
+          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION/support"
+          exec "\$APPLICATION" "\$@"
+          WRAPPER
+          chmod +x ~/.local/bin/idris2
+          
+          # Create idris2-lsp wrapper
+          cat > ~/.local/bin/idris2-lsp << WRAPPER
+          #!/bin/sh
+          set -e
+          DIR=\$(dirname "\$(readlink -f -- "\$0")")
+          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
+          APPLICATION="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp"
+          if [ ! -x "\$APPLICATION" ]; then
+            echo "[ fatal ] idris2-lsp binary not found" >&2
+            exit 2
+          fi
+          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION"
+          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
+          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION/lib"
+          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION/support"
+          export LD_LIBRARY_PATH="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp_app:\${LD_LIBRARY_PATH:-}"
+          exec "\$APPLICATION" "\$@"
+          WRAPPER
+          chmod +x ~/.local/bin/idris2-lsp
+          
+          echo "=== Wrappers created ==="
 
       - name: Get OS codename
         id: os
@@ -270,9 +342,100 @@ jobs:
         run: |
           ~/.local/bin/pack install-app idris2-lsp
 
+      - name: SSH debug session (if enabled)
+        if: ${{ inputs.enable_ssh_debug }}
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 60
+
       - name: Create portable wrappers for idris2 and idris2-lsp
         run: |
-          bash scripts/create-wrappers.sh "${{ env.IDRIS2_VERSION }}" macos
+          IDRIS2_VERSION="${{ env.IDRIS2_VERSION }}"
+          
+          echo "=== Creating portable wrappers ==="
+          echo "IDRIS2_VERSION=$IDRIS2_VERSION"
+          
+          # Debug: Show all install directories
+          echo "=== All install directories ==="
+          ls -la ~/.local/state/pack/install/
+          
+          # Find idris2-lsp binary first - it tells us exactly where everything is
+          LSP_BIN=$(find ~/.local/state/pack/install -name "idris2-lsp" -type f -perm +111 2>/dev/null | head -1)
+          
+          if [ -z "$LSP_BIN" ]; then
+            echo "ERROR: Could not find idris2-lsp binary"
+            find ~/.local/state/pack/install -name "idris2-lsp" 2>/dev/null || true
+            exit 1
+          fi
+          
+          echo "Found LSP binary: $LSP_BIN"
+          
+          # Path: ~/.local/state/pack/install/COMMIT/idris2-lsp/HASH/bin/idris2-lsp
+          LSP_BIN_DIR=$(dirname "$LSP_BIN")           # .../HASH/bin
+          LSP_HASH_DIR=$(dirname "$LSP_BIN_DIR")      # .../HASH
+          LSP_HASH=$(basename "$LSP_HASH_DIR")        # HASH
+          LSP_PARENT=$(dirname "$LSP_HASH_DIR")       # .../idris2-lsp
+          COMMIT_DIR=$(dirname "$LSP_PARENT")         # .../COMMIT
+          IDRIS2_COMMIT=$(basename "$COMMIT_DIR")     # COMMIT
+          
+          echo "IDRIS2_COMMIT=$IDRIS2_COMMIT"
+          echo "LSP_HASH=$LSP_HASH"
+          
+          # Verify paths exist
+          echo "Verifying paths..."
+          ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2/bin/idris2
+          ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2-lsp/$LSP_HASH/bin/idris2-lsp
+          
+          # Create idris2 wrapper
+          cat > ~/.local/bin/idris2 << WRAPPER
+          #!/bin/sh
+          set -e
+          if [ "\$(uname)" = "Darwin" ]; then
+            DIR=\$(cd "\$(dirname "\$0")" && pwd -P)
+          else
+            DIR=\$(dirname "\$(readlink -f -- "\$0")")
+          fi
+          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
+          APPLICATION="\$INSTALL_DIR/idris2/bin/idris2"
+          if [ ! -x "\$APPLICATION" ]; then
+            echo "[ fatal ] idris2 binary not found at \$APPLICATION" >&2
+            exit 2
+          fi
+          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION"
+          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
+          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION/lib"
+          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION/support"
+          exec "\$APPLICATION" "\$@"
+          WRAPPER
+          chmod +x ~/.local/bin/idris2
+          
+          # Create idris2-lsp wrapper
+          cat > ~/.local/bin/idris2-lsp << WRAPPER
+          #!/bin/sh
+          set -e
+          if [ "\$(uname)" = "Darwin" ]; then
+            DIR=\$(cd "\$(dirname "\$0")" && pwd -P)
+          else
+            DIR=\$(dirname "\$(readlink -f -- "\$0")")
+          fi
+          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
+          APPLICATION="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp"
+          if [ ! -x "\$APPLICATION" ]; then
+            echo "[ fatal ] idris2-lsp binary not found at \$APPLICATION" >&2
+            exit 2
+          fi
+          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION"
+          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
+          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION/lib"
+          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-$IDRIS2_VERSION/support"
+          LSP_APP_DIR="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp_app"
+          export DYLD_LIBRARY_PATH="\$LSP_APP_DIR:\${DYLD_LIBRARY_PATH:-}"
+          exec "\$APPLICATION" "\$@"
+          WRAPPER
+          chmod +x ~/.local/bin/idris2-lsp
+          
+          echo "=== Wrappers created ==="
+          head -5 ~/.local/bin/idris2
+          head -5 ~/.local/bin/idris2-lsp
 
       - name: Create archive
         run: |
