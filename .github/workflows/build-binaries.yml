@@ -66,9 +66,24 @@ jobs:
 
       - name: Create portable wrappers for idris2 and idris2-lsp
         run: |
-          # Get commit hash and app hashes
-          IDRIS2_COMMIT=$(ls ~/.local/state/pack/install/ | grep -E '^[0-9a-f]{40}$' | head -1)
-          LSP_HASH=$(ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2-lsp/ | head -1)
+          # Get commit hash - find directory containing idris2 binary
+          IDRIS2_COMMIT=$(ls -d ~/.local/state/pack/install/*/idris2 2>/dev/null | head -1 | xargs dirname | xargs basename)
+          
+          if [ -z "$IDRIS2_COMMIT" ]; then
+            echo "ERROR: Could not find IDRIS2_COMMIT"
+            ls -la ~/.local/state/pack/install/
+            exit 1
+          fi
+          
+          # Get LSP hash
+          LSP_HASH=$(ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2-lsp/ 2>/dev/null | head -1)
+          
+          if [ -z "$LSP_HASH" ]; then
+            echo "ERROR: Could not find LSP_HASH"
+            ls -la ~/.local/state/pack/install/$IDRIS2_COMMIT/ || true
+            exit 1
+          fi
+          
           IDRIS2_VERSION="${{ env.IDRIS2_VERSION }}"
           
           echo "IDRIS2_COMMIT=$IDRIS2_COMMIT"
@@ -357,9 +372,24 @@ jobs:
 
       - name: Create portable wrappers for idris2 and idris2-lsp
         run: |
-          # Get commit hash and app hashes
-          IDRIS2_COMMIT=$(ls ~/.local/state/pack/install/ | grep -E '^[0-9a-f]{40}$' | head -1)
-          LSP_HASH=$(ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2-lsp/ | head -1)
+          # Get commit hash - find directory containing idris2 binary
+          IDRIS2_COMMIT=$(ls -d ~/.local/state/pack/install/*/idris2 2>/dev/null | head -1 | xargs dirname | xargs basename)
+          
+          if [ -z "$IDRIS2_COMMIT" ]; then
+            echo "ERROR: Could not find IDRIS2_COMMIT"
+            ls -la ~/.local/state/pack/install/
+            exit 1
+          fi
+          
+          # Get LSP hash
+          LSP_HASH=$(ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2-lsp/ 2>/dev/null | head -1)
+          
+          if [ -z "$LSP_HASH" ]; then
+            echo "ERROR: Could not find LSP_HASH"
+            ls -la ~/.local/state/pack/install/$IDRIS2_COMMIT/ || true
+            exit 1
+          fi
+          
           IDRIS2_VERSION="${{ env.IDRIS2_VERSION }}"
           
           echo "IDRIS2_COMMIT=$IDRIS2_COMMIT"
