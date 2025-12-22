@@ -7,8 +7,9 @@ Pre-compiled binaries for [Idris2](https://www.idris-lang.org/) and [pack](https
 **Collection:** `nightly-250828` (Idris2 0.7.0)
 
 **Supported platforms:**
-| Distribution | Versions |
-|-------------|----------|
+| Platform | Versions |
+|----------|----------|
+| **macOS** | Apple Silicon (M1/M2/M3), Intel x86_64 |
 | Ubuntu | 22.04 (jammy), 24.04 (noble) |
 | Debian | 12 (bookworm) |
 | Fedora | 40 |
@@ -23,12 +24,16 @@ Pre-compiled binaries for [Idris2](https://www.idris-lang.org/) and [pack](https
 curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install.sh | bash
 ```
 
-Then open a new terminal (or run `source ~/.bashrc`) and verify:
+Then open a new terminal (or run `source ~/.bashrc` / `source ~/.zshrc`) and verify:
 ```bash
 pack info
 idris2 --version
 idris2-lsp --version
 ```
+
+### macOS Prerequisites
+
+On macOS, [Homebrew](https://brew.sh) must be installed. The script will automatically install Chez Scheme via Homebrew.
 
 ### Reinstall
 

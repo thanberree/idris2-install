@@ -11,10 +11,18 @@ on:
         description: 'Build Ubuntu'
         type: boolean
         default: true
-      build_macos:
-        description: 'Build macOS (PAYANT - consomme le quota)'
-        type: boolean
-        default: false
+      macos_target:
+        description: 'macOS target (none = skip macOS build)'
+        type: choice
+        options:
+          - none
+          - macos-14-arm64
+          - macos-13-intel
+        default: 'none'
+
+env:
+  # Idris2 version embedded in paths - update when changing collection
+  IDRIS2_VERSION: "0.7.0"
 
 jobs:
   build-ubuntu:
@@ -24,6 +32,9 @@ jobs:
         os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -49,56 +60,94 @@ jobs:
         run: |
           ~/.local/bin/pack install-app idris2-lsp
 
-      - name: Create standalone wrappers for idris2 and idris2-lsp
+      - name: Create portable wrappers for idris2 and idris2-lsp
         run: |
           # Get commit hash and app hashes
           IDRIS2_COMMIT=$(ls ~/.local/state/pack/install/ | grep -E '^[0-9a-f]{40}$' | head -1)
           LSP_HASH=$(ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2-lsp/ | head -1)
+          IDRIS2_VERSION="${{ env.IDRIS2_VERSION }}"
           
-          # Create standalone idris2 wrapper
-          cat > ~/.local/bin/idris2 << WRAPPER
+          echo "IDRIS2_COMMIT=$IDRIS2_COMMIT"
+          echo "LSP_HASH=$LSP_HASH"
+          echo "IDRIS2_VERSION=$IDRIS2_VERSION"
+          
+          # Create portable idris2 wrapper (works after extraction to any $HOME)
+          cat > ~/.local/bin/idris2 << 'WRAPPER'
           #!/bin/sh
           set -e
-          DIR=\$(dirname "\$(readlink -f -- "\$0")")
-          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
-          APPLICATION="\$INSTALL_DIR/idris2/bin/idris2"
           
-          if [ ! -x "\$APPLICATION" ]; then
-            echo "[ fatal ] idris2 binary not found" >&2
+          # Resolve script directory (works on both Linux and macOS)
+          if [ "$(uname)" = "Darwin" ]; then
+            DIR=$(cd "$(dirname "$0")" && pwd -P)
+          else
+            DIR=$(dirname "$(readlink -f -- "$0")")
+          fi
+          
+          INSTALL_DIR="$DIR/../state/pack/install/IDRIS2_COMMIT_PLACEHOLDER"
+          APPLICATION="$INSTALL_DIR/idris2/bin/idris2"
+          
+          if [ ! -x "$APPLICATION" ]; then
+            echo "[ fatal ] idris2 binary not found at $APPLICATION" >&2
             exit 2
           fi
           
-          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-0.7.0"
-          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
-          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-0.7.0/lib"
-          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-0.7.0/support"
+          export IDRIS2_PREFIX="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER"
+          export IDRIS2_PACKAGE_PATH="$INSTALL_DIR"
+          export IDRIS2_LIBS="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER/lib"
+          export IDRIS2_DATA="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER/support"
           
-          exec "\$APPLICATION" "\$@"
+          exec "$APPLICATION" "$@"
           WRAPPER
+          
+          # Replace placeholders
+          sed -i "s/IDRIS2_COMMIT_PLACEHOLDER/$IDRIS2_COMMIT/g" ~/.local/bin/idris2
+          sed -i "s/IDRIS2_VERSION_PLACEHOLDER/$IDRIS2_VERSION/g" ~/.local/bin/idris2
           chmod +x ~/.local/bin/idris2
           
-          # Create standalone idris2-lsp wrapper
-          cat > ~/.local/bin/idris2-lsp << WRAPPER
+          # Create portable idris2-lsp wrapper
+          cat > ~/.local/bin/idris2-lsp << 'WRAPPER'
           #!/bin/sh
           set -e
-          DIR=\$(dirname "\$(readlink -f -- "\$0")")
-          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
-          APPLICATION="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp"
           
-          if [ ! -x "\$APPLICATION" ]; then
-            echo "[ fatal ] idris2-lsp binary not found" >&2
+          # Resolve script directory (works on both Linux and macOS)
+          if [ "$(uname)" = "Darwin" ]; then
+            DIR=$(cd "$(dirname "$0")" && pwd -P)
+          else
+            DIR=$(dirname "$(readlink -f -- "$0")")
+          fi
+          
+          INSTALL_DIR="$DIR/../state/pack/install/IDRIS2_COMMIT_PLACEHOLDER"
+          APPLICATION="$INSTALL_DIR/idris2-lsp/LSP_HASH_PLACEHOLDER/bin/idris2-lsp"
+          
+          if [ ! -x "$APPLICATION" ]; then
+            echo "[ fatal ] idris2-lsp binary not found at $APPLICATION" >&2
             exit 2
           fi
           
-          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-0.7.0"
-          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
-          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-0.7.0/lib"
-          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-0.7.0/support"
-          export LD_LIBRARY_PATH="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp_app:\$LD_LIBRARY_PATH"
+          export IDRIS2_PREFIX="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER"
+          export IDRIS2_PACKAGE_PATH="$INSTALL_DIR"
+          export IDRIS2_LIBS="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER/lib"
+          export IDRIS2_DATA="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER/support"
           
-          exec "\$APPLICATION" "\$@"
+          # Library path for dynamic libraries
+          LSP_APP_DIR="$INSTALL_DIR/idris2-lsp/LSP_HASH_PLACEHOLDER/bin/idris2-lsp_app"
+          export LD_LIBRARY_PATH="$LSP_APP_DIR:${LD_LIBRARY_PATH:-}"
+          export DYLD_LIBRARY_PATH="$LSP_APP_DIR:${DYLD_LIBRARY_PATH:-}"
+          
+          exec "$APPLICATION" "$@"
           WRAPPER
+          
+          # Replace placeholders
+          sed -i "s/IDRIS2_COMMIT_PLACEHOLDER/$IDRIS2_COMMIT/g" ~/.local/bin/idris2-lsp
+          sed -i "s/LSP_HASH_PLACEHOLDER/$LSP_HASH/g" ~/.local/bin/idris2-lsp
+          sed -i "s/IDRIS2_VERSION_PLACEHOLDER/$IDRIS2_VERSION/g" ~/.local/bin/idris2-lsp
           chmod +x ~/.local/bin/idris2-lsp
+          
+          # Verify wrappers
+          echo "=== idris2 wrapper ==="
+          head -20 ~/.local/bin/idris2
+          echo "=== idris2-lsp wrapper ==="
+          head -20 ~/.local/bin/idris2-lsp
 
       - name: Get OS codename
         id: os
@@ -107,7 +156,7 @@ jobs:
       - name: Create archive
         run: |
           cd ~
-          # Exclure .cache/pack/git qui contient des dossiers sans .git (cause des erreurs)
+          # Exclude .cache/pack/git (contains dirs without .git, breaks pack install-app)
           tar --exclude='.git' --exclude='.cache/pack/git' -czvf idris2-pack-${{ github.event.inputs.collection }}-${{ steps.os.outputs.codename }}-full.tar.gz \
             .local/bin/pack \
             .local/bin/pack_app \
@@ -186,29 +235,108 @@ jobs:
           idris2 -o hello Hello.idr
           ./build/exec/hello
 
+      - name: Test pack with dependencies (real project)
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p /tmp/test-pack-project
+          cd /tmp/test-pack-project
+          
+          # Create a pack.toml that uses pre-installed packages
+          cat > pack.toml << 'EOF'
+          [package]
+          name = "test-project"
+          version = "0.1.0"
+          authors = ["Test"]
+          brief = "Test project to verify installation"
+          
+          [dependencies]
+          ansi = "^0.6.0"
+          pretty-show = "^0.3.0"
+          EOF
+          
+          # Create a source file that uses the dependencies
+          mkdir -p src
+          cat > src/Main.idr << 'EOF'
+          module Main
+          
+          import Text.ANSI
+          import Text.Show.Pretty
+          
+          record Person where
+            constructor MkPerson
+            name : String
+            age : Nat
+          
+          Show Person where
+            show (MkPerson n a) = "Person { name = " ++ show n ++ ", age = " ++ show a ++ " }"
+          
+          main : IO ()
+          main = do
+            let p = MkPerson "Alice" 30
+            putStrLn $ colored BrightGreen "Testing pre-compiled packages:"
+            putStrLn $ "  Person: " ++ show p
+            putStrLn $ colored BrightBlue "✓ All dependencies work!"
+          EOF
+          
+          # Build and run
+          pack build test-project
+          pack run test-project
+
   build-macos:
-    if: ${{ inputs.build_macos }}
-    strategy:
-      matrix:
-        include:
-          - os: macos-15-large
-            arch: x86_64
-          - os: macos-latest
-            arch: arm64
-    runs-on: ${{ matrix.os }}
+    if: ${{ inputs.macos_target != 'none' }}
+    runs-on: ${{ inputs.macos_target == 'macos-14-arm64' && 'macos-14' || 'macos-13' }}
+    env:
+      MACOS_ARCH: ${{ inputs.macos_target == 'macos-14-arm64' && 'arm64' || 'x86_64' }}
     steps:
-      - name: Install Chez Scheme
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show system info
+        run: |
+          echo "Runner: ${{ inputs.macos_target }}"
+          echo "Architecture: $(uname -m)"
+          echo "Expected: ${{ env.MACOS_ARCH }}"
+          sw_vers
+
+      - name: Install Chez Scheme via Homebrew
         run: |
           brew install chezscheme
-          # Create symlink so 'chezscheme' command exists
-          sudo ln -sf $(brew --prefix)/bin/chez /usr/local/bin/chezscheme
+          
+          # Find where Homebrew installed chez
+          BREW_PREFIX=$(brew --prefix)
+          echo "Homebrew prefix: $BREW_PREFIX"
+          
+          # The binary is called 'chez' not 'chezscheme'
+          if [ -x "$BREW_PREFIX/bin/chez" ]; then
+            echo "Found: $BREW_PREFIX/bin/chez"
+            # Create chezscheme symlink in a location that's in PATH
+            sudo mkdir -p /usr/local/bin
+            sudo ln -sf "$BREW_PREFIX/bin/chez" /usr/local/bin/chezscheme
+            sudo ln -sf "$BREW_PREFIX/bin/chez" /usr/local/bin/chez
+          elif [ -x "$BREW_PREFIX/bin/chezscheme" ]; then
+            echo "Found: $BREW_PREFIX/bin/chezscheme"
+            sudo mkdir -p /usr/local/bin
+            sudo ln -sf "$BREW_PREFIX/bin/chezscheme" /usr/local/bin/chezscheme
+          else
+            echo "ERROR: Cannot find chez scheme binary"
+            ls -la "$BREW_PREFIX/bin/" | grep -i chez || true
+            exit 1
+          fi
+          
+          # Verify
+          echo "Verifying chezscheme installation:"
+          which chezscheme || which chez
+          chezscheme --version || chez --version
 
       - name: Install pack + Idris2
         run: |
           curl -fsSL https://raw.githubusercontent.com/stefan-hoeck/idris2-pack/main/install.bash -o install.bash
-          # Patch for non-interactive install (macOS sed syntax)
+          
+          # Patch for non-interactive install (macOS sed syntax - no backup extension)
           sed -i '' 's/read -r -p "Enter the name of your chez-scheme or racket binary \[\$DETECTED_SCHEME\]: " SCHEME/SCHEME=\${SCHEME:-\$DETECTED_SCHEME}/' install.bash
-          bash install.bash
+          
+          # Use 'chez' as the scheme name (that's what Homebrew installs)
+          SCHEME=chez bash install.bash
         env:
           SCHEME: chez
 
@@ -223,70 +351,100 @@ jobs:
         run: |
           ~/.local/bin/pack install-app idris2-lsp
 
-      - name: Create standalone wrappers for idris2 and idris2-lsp
+      - name: Create portable wrappers for idris2 and idris2-lsp
         run: |
           # Get commit hash and app hashes
           IDRIS2_COMMIT=$(ls ~/.local/state/pack/install/ | grep -E '^[0-9a-f]{40}$' | head -1)
           LSP_HASH=$(ls ~/.local/state/pack/install/$IDRIS2_COMMIT/idris2-lsp/ | head -1)
+          IDRIS2_VERSION="${{ env.IDRIS2_VERSION }}"
           
-          # Create standalone idris2 wrapper (macOS compatible)
-          cat > ~/.local/bin/idris2 << WRAPPER
+          echo "IDRIS2_COMMIT=$IDRIS2_COMMIT"
+          echo "LSP_HASH=$LSP_HASH"
+          echo "IDRIS2_VERSION=$IDRIS2_VERSION"
+          
+          # Create portable idris2 wrapper (works after extraction to any $HOME)
+          cat > ~/.local/bin/idris2 << 'WRAPPER'
           #!/bin/sh
           set -e
-          if [ "\$(uname)" = Darwin ]; then
-            DIR=\$(cd "\$(dirname "\$0")" && pwd -P)
-          else
-            DIR=\$(dirname "\$(readlink -f -- "\$0")")
-          fi
-          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
-          APPLICATION="\$INSTALL_DIR/idris2/bin/idris2"
           
-          if [ ! -x "\$APPLICATION" ]; then
-            echo "[ fatal ] idris2 binary not found" >&2
+          # Resolve script directory (works on both Linux and macOS)
+          if [ "$(uname)" = "Darwin" ]; then
+            DIR=$(cd "$(dirname "$0")" && pwd -P)
+          else
+            DIR=$(dirname "$(readlink -f -- "$0")")
+          fi
+          
+          INSTALL_DIR="$DIR/../state/pack/install/IDRIS2_COMMIT_PLACEHOLDER"
+          APPLICATION="$INSTALL_DIR/idris2/bin/idris2"
+          
+          if [ ! -x "$APPLICATION" ]; then
+            echo "[ fatal ] idris2 binary not found at $APPLICATION" >&2
             exit 2
           fi
           
-          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-0.7.0"
-          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
-          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-0.7.0/lib"
-          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-0.7.0/support"
+          export IDRIS2_PREFIX="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER"
+          export IDRIS2_PACKAGE_PATH="$INSTALL_DIR"
+          export IDRIS2_LIBS="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER/lib"
+          export IDRIS2_DATA="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER/support"
           
-          exec "\$APPLICATION" "\$@"
+          exec "$APPLICATION" "$@"
           WRAPPER
+          
+          # Replace placeholders (macOS sed syntax)
+          sed -i '' "s/IDRIS2_COMMIT_PLACEHOLDER/$IDRIS2_COMMIT/g" ~/.local/bin/idris2
+          sed -i '' "s/IDRIS2_VERSION_PLACEHOLDER/$IDRIS2_VERSION/g" ~/.local/bin/idris2
           chmod +x ~/.local/bin/idris2
           
-          # Create standalone idris2-lsp wrapper (macOS compatible)
-          cat > ~/.local/bin/idris2-lsp << WRAPPER
+          # Create portable idris2-lsp wrapper
+          cat > ~/.local/bin/idris2-lsp << 'WRAPPER'
           #!/bin/sh
           set -e
-          if [ "\$(uname)" = Darwin ]; then
-            DIR=\$(cd "\$(dirname "\$0")" && pwd -P)
-          else
-            DIR=\$(dirname "\$(readlink -f -- "\$0")")
-          fi
-          INSTALL_DIR="\$DIR/../state/pack/install/$IDRIS2_COMMIT"
-          APPLICATION="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp"
           
-          if [ ! -x "\$APPLICATION" ]; then
-            echo "[ fatal ] idris2-lsp binary not found" >&2
+          # Resolve script directory (works on both Linux and macOS)
+          if [ "$(uname)" = "Darwin" ]; then
+            DIR=$(cd "$(dirname "$0")" && pwd -P)
+          else
+            DIR=$(dirname "$(readlink -f -- "$0")")
+          fi
+          
+          INSTALL_DIR="$DIR/../state/pack/install/IDRIS2_COMMIT_PLACEHOLDER"
+          APPLICATION="$INSTALL_DIR/idris2-lsp/LSP_HASH_PLACEHOLDER/bin/idris2-lsp"
+          
+          if [ ! -x "$APPLICATION" ]; then
+            echo "[ fatal ] idris2-lsp binary not found at $APPLICATION" >&2
             exit 2
           fi
           
-          export IDRIS2_PREFIX="\$INSTALL_DIR/idris2/idris2-0.7.0"
-          export IDRIS2_PACKAGE_PATH="\$INSTALL_DIR"
-          export IDRIS2_LIBS="\$INSTALL_DIR/idris2/idris2-0.7.0/lib"
-          export IDRIS2_DATA="\$INSTALL_DIR/idris2/idris2-0.7.0/support"
-          export LD_LIBRARY_PATH="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp_app:\$LD_LIBRARY_PATH"
-          export DYLD_LIBRARY_PATH="\$INSTALL_DIR/idris2-lsp/$LSP_HASH/bin/idris2-lsp_app:\$DYLD_LIBRARY_PATH"
+          export IDRIS2_PREFIX="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER"
+          export IDRIS2_PACKAGE_PATH="$INSTALL_DIR"
+          export IDRIS2_LIBS="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER/lib"
+          export IDRIS2_DATA="$INSTALL_DIR/idris2/idris2-IDRIS2_VERSION_PLACEHOLDER/support"
           
-          exec "\$APPLICATION" "\$@"
+          # Library path for dynamic libraries
+          LSP_APP_DIR="$INSTALL_DIR/idris2-lsp/LSP_HASH_PLACEHOLDER/bin/idris2-lsp_app"
+          export LD_LIBRARY_PATH="$LSP_APP_DIR:${LD_LIBRARY_PATH:-}"
+          export DYLD_LIBRARY_PATH="$LSP_APP_DIR:${DYLD_LIBRARY_PATH:-}"
+          
+          exec "$APPLICATION" "$@"
           WRAPPER
+          
+          # Replace placeholders (macOS sed syntax)
+          sed -i '' "s/IDRIS2_COMMIT_PLACEHOLDER/$IDRIS2_COMMIT/g" ~/.local/bin/idris2-lsp
+          sed -i '' "s/LSP_HASH_PLACEHOLDER/$LSP_HASH/g" ~/.local/bin/idris2-lsp
+          sed -i '' "s/IDRIS2_VERSION_PLACEHOLDER/$IDRIS2_VERSION/g" ~/.local/bin/idris2-lsp
           chmod +x ~/.local/bin/idris2-lsp
+          
+          # Verify wrappers
+          echo "=== idris2 wrapper ==="
+          head -20 ~/.local/bin/idris2
+          echo "=== idris2-lsp wrapper ==="
+          head -20 ~/.local/bin/idris2-lsp
 
       - name: Create archive
         run: |
           cd ~
-          tar --exclude='.git' -czvf idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}-full.tar.gz \
+          # Exclude .cache/pack/git (contains dirs without .git, breaks pack install-app)
+          tar --exclude='.git' --exclude='.cache/pack/git' -czvf idris2-pack-${{ github.event.inputs.collection }}-macos-${{ env.MACOS_ARCH }}-full.tar.gz \
             .local/bin/pack \
             .local/bin/pack_app \
             .local/bin/idris2 \
@@ -298,40 +456,46 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}
-          path: ~/idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}-full.tar.gz
+          name: idris2-pack-${{ github.event.inputs.collection }}-macos-${{ env.MACOS_ARCH }}
+          path: ~/idris2-pack-${{ github.event.inputs.collection }}-macos-${{ env.MACOS_ARCH }}-full.tar.gz
 
       - name: Upload to release
         run: |
-          gh release upload v1.0 ~/idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}-full.tar.gz --clobber
+          gh release upload v1.0 ~/idris2-pack-${{ github.event.inputs.collection }}-macos-${{ env.MACOS_ARCH }}-full.tar.gz --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test-macos:
     needs: build-macos
-    if: ${{ inputs.build_macos }}
-    strategy:
-      matrix:
-        include:
-          - os: macos-15-large
-            arch: x86_64
-          - os: macos-latest
-            arch: arm64
-    runs-on: ${{ matrix.os }}
+    if: ${{ inputs.macos_target != 'none' }}
+    runs-on: ${{ inputs.macos_target == 'macos-14-arm64' && 'macos-14' || 'macos-13' }}
+    env:
+      MACOS_ARCH: ${{ inputs.macos_target == 'macos-14-arm64' && 'arm64' || 'x86_64' }}
     steps:
       - name: Install Chez Scheme (runtime dependency)
-        run: brew install chezscheme
+        run: |
+          brew install chezscheme
+          
+          # Create symlinks for the runtime
+          BREW_PREFIX=$(brew --prefix)
+          sudo mkdir -p /usr/local/bin
+          if [ -x "$BREW_PREFIX/bin/chez" ]; then
+            sudo ln -sf "$BREW_PREFIX/bin/chez" /usr/local/bin/chezscheme
+            sudo ln -sf "$BREW_PREFIX/bin/chez" /usr/local/bin/chez
+          elif [ -x "$BREW_PREFIX/bin/chezscheme" ]; then
+            sudo ln -sf "$BREW_PREFIX/bin/chezscheme" /usr/local/bin/chezscheme
+          fi
 
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}
+          name: idris2-pack-${{ github.event.inputs.collection }}-macos-${{ env.MACOS_ARCH }}
           path: ~/
 
       - name: Extract archive
         run: |
           cd ~
-          tar xzf idris2-pack-${{ github.event.inputs.collection }}-macos-${{ matrix.arch }}-full.tar.gz
+          tar xzf idris2-pack-${{ github.event.inputs.collection }}-macos-${{ env.MACOS_ARCH }}-full.tar.gz
 
       - name: Test pack info
         run: |
@@ -361,3 +525,50 @@ jobs:
           cd /tmp/test-idris
           idris2 -o hello Hello.idr
           ./build/exec/hello
+
+      - name: Test pack with dependencies (real project)
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          mkdir -p /tmp/test-pack-project
+          cd /tmp/test-pack-project
+          
+          # Create a pack.toml that uses pre-installed packages
+          cat > pack.toml << 'EOF'
+          [package]
+          name = "test-project"
+          version = "0.1.0"
+          authors = ["Test"]
+          brief = "Test project to verify installation"
+          
+          [dependencies]
+          ansi = "^0.6.0"
+          pretty-show = "^0.3.0"
+          EOF
+          
+          # Create a source file that uses the dependencies
+          mkdir -p src
+          cat > src/Main.idr << 'EOF'
+          module Main
+          
+          import Text.ANSI
+          import Text.Show.Pretty
+          
+          record Person where
+            constructor MkPerson
+            name : String
+            age : Nat
+          
+          Show Person where
+            show (MkPerson n a) = "Person { name = " ++ show n ++ ", age = " ++ show a ++ " }"
+          
+          main : IO ()
+          main = do
+            let p = MkPerson "Alice" 30
+            putStrLn $ colored BrightGreen "Testing pre-compiled packages:"
+            putStrLn $ "  Person: " ++ show p
+            putStrLn $ colored BrightBlue "✓ All dependencies work!"
+          EOF
+          
+          # Build and run
+          pack build test-project
+          pack run test-project

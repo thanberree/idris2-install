@@ -7,8 +7,9 @@
 
 
 **Plateformes supportées :**
-| Distribution | Versions |
-|-------------|----------|
+| Plateforme | Versions |
+|------------|----------|
+| **macOS** | Apple Silicon (M1/M2/M3), Intel x86_64 |
 | Ubuntu | 22.04 (jammy), 24.04 (noble) |
 | Debian | 12 (bookworm) |
 | Fedora | 40 |
@@ -22,12 +23,16 @@
 curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install.sh | bash
 ```
 
-Ouvrez ensuite un nouveau terminal (ou exécutez `source ~/.bashrc`) et vérifiez :
+Ouvrez ensuite un nouveau terminal (ou exécutez `source ~/.bashrc` / `source ~/.zshrc`) et vérifiez :
 ```bash
 pack info
 idris2 --version
 idris2-lsp --version
 ```
+
+### Prérequis macOS
+
+Sur macOS, [Homebrew](https://brew.sh) doit être installé. Le script installera automatiquement Chez Scheme via Homebrew.
 
 ### Réinstallation
 

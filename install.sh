@@ -2,10 +2,11 @@
 set -euo pipefail
 
 # Version de l'installeur
-INSTALLER_VERSION="1.4.0"
+INSTALLER_VERSION="1.5.0"
 
 # Configuration
 COLLECTION="nightly-250828"
+OS_TYPE=$(uname -s)
 RELEASE_BASE_URL="https://github.com/thanberree/idris2-install/releases/download/v1.0"
 MIN_DISK_SPACE_MB=300
 
@@ -203,7 +204,13 @@ fi
 
 # Détection du gestionnaire de paquets
 PKG_MANAGER=""
-if command -v apt-get &>/dev/null; then
+if [[ "$OS_TYPE" == "Darwin" ]]; then
+  # macOS - utiliser Homebrew
+  if ! command -v brew &>/dev/null; then
+    error "Homebrew est requis sur macOS. Installez-le depuis https://brew.sh"
+  fi
+  PKG_MANAGER="brew"
+elif command -v apt-get &>/dev/null; then
   PKG_MANAGER="apt"
 elif command -v dnf &>/dev/null; then
   PKG_MANAGER="dnf"
@@ -228,6 +235,10 @@ need_pkg_update() {
       pacman)
         info "Mise à jour des sources pacman..."
         sudo pacman -Sy
+        ;;
+      brew)
+        info "Mise à jour de Homebrew..."
+        brew update
         ;;
     esac
     PKG_UPDATED=1
@@ -254,6 +265,16 @@ map_package_name() {
         *) echo "$pkg" ;;
       esac
       ;;
+    brew)
+      case "$pkg" in
+        chezscheme) echo "chezscheme" ;;
+        rlwrap) echo "rlwrap" ;;
+        coreutils) echo "coreutils" ;;
+        unzip) echo "unzip" ;;
+        git) echo "git" ;;
+        *) echo "$pkg" ;;
+      esac
+      ;;
     *)
       echo "$pkg"
       ;;
@@ -262,8 +283,13 @@ map_package_name() {
 
 # Vérifier Chez Scheme
 # Note: sur Arch, chez-scheme n'est pas dans les dépôts officiels mais dans AUR
+# Note: sur macOS, Homebrew installe 'chez' pas 'chezscheme'
 if ! command -v chezscheme &>/dev/null && ! command -v chez &>/dev/null && ! command -v scheme &>/dev/null; then
-  if [[ "$PKG_MANAGER" == "pacman" ]]; then
+  if [[ "$PKG_MANAGER" == "brew" ]]; then
+    # Sur macOS, installer via Homebrew
+    info "Installation de Chez Scheme via Homebrew..."
+    brew install chezscheme
+  elif [[ "$PKG_MANAGER" == "pacman" ]]; then
     # Sur Arch, installer depuis AUR
     info "Chez Scheme n'est pas dans les dépôts officiels Arch. Installation depuis AUR..."
     if ! command -v yay &>/dev/null && ! command -v paru &>/dev/null; then
@@ -314,29 +340,72 @@ if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
       info "Installation des dépendances (pacman): $PACKAGES_TO_INSTALL"
       sudo pacman -S --noconfirm $PACKAGES_TO_INSTALL
       ;;
+    brew)
+      info "Installation des dépendances (brew): $PACKAGES_TO_INSTALL"
+      brew install $PACKAGES_TO_INSTALL
+      ;;
     *)
       error "Gestionnaire de paquets non supporté. Installez manuellement: $PACKAGES_TO_INSTALL"
       ;;
   esac
 fi
 
-# Vérifier que /usr/bin/chezscheme existe (le shebang des binaires en a besoin)
-if [[ ! -x /usr/bin/chezscheme ]]; then
-  if [[ -x /usr/bin/scheme ]]; then
-    info "Création du lien /usr/bin/chezscheme -> /usr/bin/scheme"
-    sudo ln -sf /usr/bin/scheme /usr/bin/chezscheme
-  elif [[ -x /usr/bin/chez ]]; then
-    info "Création du lien /usr/bin/chezscheme -> /usr/bin/chez"
-    sudo ln -sf /usr/bin/chez /usr/bin/chezscheme
-  elif command -v chezscheme &>/dev/null; then
-    # chezscheme existe mais pas dans /usr/bin
-    chez_path=$(command -v chezscheme)
-    info "Création du lien /usr/bin/chezscheme -> $chez_path"
-    sudo ln -sf "$chez_path" /usr/bin/chezscheme
-  else
+# Vérifier que chezscheme est accessible
+# Sur Linux: créer un symlink dans /usr/local/bin si nécessaire
+# Sur macOS: créer un symlink dans /usr/local/bin (pas /usr/bin qui est protégé par SIP)
+ensure_chezscheme_accessible() {
+  # Trouver le binaire chez scheme
+  local chez_bin=""
+  if command -v chezscheme &>/dev/null; then
+    chez_bin=$(command -v chezscheme)
+  elif command -v chez &>/dev/null; then
+    chez_bin=$(command -v chez)
+  elif command -v scheme &>/dev/null; then
+    chez_bin=$(command -v scheme)
+  elif [[ "$OS_TYPE" == "Darwin" ]]; then
+    # Sur macOS, Homebrew peut installer dans /opt/homebrew (ARM) ou /usr/local (Intel)
+    local brew_prefix
+    brew_prefix=$(brew --prefix 2>/dev/null || echo "/usr/local")
+    if [[ -x "$brew_prefix/bin/chez" ]]; then
+      chez_bin="$brew_prefix/bin/chez"
+    elif [[ -x "$brew_prefix/bin/chezscheme" ]]; then
+      chez_bin="$brew_prefix/bin/chezscheme"
+    fi
+  fi
+  
+  if [[ -z "$chez_bin" ]]; then
     error "Chez Scheme introuvable. Vérifiez: which scheme chez chezscheme"
   fi
-fi
+  
+  # Créer les symlinks si nécessaire
+  if [[ "$OS_TYPE" == "Darwin" ]]; then
+    # Sur macOS, utiliser /usr/local/bin (pas /usr/bin - protégé par SIP)
+    if [[ ! -x /usr/local/bin/chezscheme ]]; then
+      info "Création du lien /usr/local/bin/chezscheme -> $chez_bin"
+      sudo mkdir -p /usr/local/bin
+      sudo ln -sf "$chez_bin" /usr/local/bin/chezscheme
+    fi
+    if [[ ! -x /usr/local/bin/chez ]] && [[ "$chez_bin" != *"chezscheme" ]]; then
+      sudo ln -sf "$chez_bin" /usr/local/bin/chez
+    fi
+  else
+    # Sur Linux, utiliser /usr/bin si possible, sinon /usr/local/bin
+    if [[ ! -x /usr/bin/chezscheme ]]; then
+      if [[ -x /usr/bin/scheme ]]; then
+        info "Création du lien /usr/bin/chezscheme -> /usr/bin/scheme"
+        sudo ln -sf /usr/bin/scheme /usr/bin/chezscheme
+      elif [[ -x /usr/bin/chez ]]; then
+        info "Création du lien /usr/bin/chezscheme -> /usr/bin/chez"
+        sudo ln -sf /usr/bin/chez /usr/bin/chezscheme
+      else
+        info "Création du lien /usr/bin/chezscheme -> $chez_bin"
+        sudo ln -sf "$chez_bin" /usr/bin/chezscheme
+      fi
+    fi
+  fi
+}
+
+ensure_chezscheme_accessible
 
 # Téléchargement et installation
 info "Téléchargement des binaires Idris2 + pack..."
@@ -371,10 +440,23 @@ fi
 # Corriger les chemins codés en dur dans les scripts wrapper
 # Les binaires générés par pack contiennent des chemins absolus vers le HOME de la machine de build
 info "Correction des chemins dans les scripts..."
+
+# Fonction sed compatible Linux et macOS
+portable_sed_inplace() {
+  local file="$1"
+  local pattern="$2"
+  if [[ "$OS_TYPE" == "Darwin" ]]; then
+    sed -i '' "$pattern" "$file"
+  else
+    sed -i "$pattern" "$file"
+  fi
+}
+
 for script in "$HOME/.local/bin/pack" "$HOME/.local/bin/idris2" "$HOME/.local/bin/idris2-lsp"; do
   if [[ -f "$script" ]]; then
-    # Remplacer tout chemin /home/*/. par $HOME/.
-    sed -i "s|/home/[^/]*/\\.local/|$HOME/.local/|g" "$script"
+    # Remplacer tout chemin /home/*/. ou /Users/*/.local par $HOME/.local
+    portable_sed_inplace "$script" "s|/home/[^/]*/\\.local/|$HOME/.local/|g"
+    portable_sed_inplace "$script" "s|/Users/[^/]*/\\.local/|$HOME/.local/|g"
   fi
 done
 
@@ -382,7 +464,8 @@ done
 if [[ -d "$HOME/.local/bin/pack_app" ]]; then
   for script in "$HOME/.local/bin/pack_app/"*; do
     if [[ -f "$script" ]]; then
-      sed -i "s|/home/[^/]*/\\.local/|$HOME/.local/|g" "$script"
+      portable_sed_inplace "$script" "s|/home/[^/]*/\\.local/|$HOME/.local/|g"
+      portable_sed_inplace "$script" "s|/Users/[^/]*/\\.local/|$HOME/.local/|g"
     fi
   done
 fi
