@@ -20,6 +20,10 @@ on:
           - macos-13-intel
         default: 'none'
 
+# Required for gh release upload
+permissions:
+  contents: write
+
 env:
   # Idris2 version embedded in paths - update when changing collection
   IDRIS2_VERSION: "0.7.0"
