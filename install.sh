@@ -129,6 +129,23 @@ detect_archive_url() {
       # Gérer Fedora/Arch différemment
       case "$distro_id" in
         fedora)
+          # Fedora archives are sensitive to the Chez Scheme version shipped by Fedora.
+          # We try a version-specific asset first (e.g. fedora43) and fall back to the
+          # generic fedora archive if not available.
+          local fedora_ver=""
+          if [[ -f /etc/os-release ]]; then
+            fedora_ver=$(grep '^VERSION_ID=' /etc/os-release | cut -d= -f2 | tr -d '"' || true)
+            fedora_ver=${fedora_ver%%.*}
+          fi
+
+          if [[ -n "$fedora_ver" ]]; then
+            local candidate="${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-fedora${fedora_ver}-full.tar.gz"
+            if curl -fsI "$candidate" >/dev/null 2>&1; then
+              echo "$candidate"
+              return
+            fi
+          fi
+
           echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-fedora-full.tar.gz"
           return
           ;;
