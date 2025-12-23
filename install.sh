@@ -170,7 +170,12 @@ info "Archive détectée: $(basename "$ARCHIVE_URL")"
 # Vérifier l'espace disque disponible
 check_disk_space() {
   local available_mb
-  available_mb=$(df -m "$HOME" | awk 'NR==2 {print $4}')
+  # Avoid depending on awk here: on Fedora minimal/WSL it may not be installed yet.
+  # df output: Filesystem 1M-blocks Used Available Use% Mounted on
+  # We parse the 2nd line and take the 4th column (Available).
+  local _fs _blocks _used _avail _usep _mnt
+  read -r _fs _blocks _used _avail _usep _mnt < <(df -m "$HOME" | sed -n '2p')
+  available_mb="${_avail:-0}"
   if [[ "$available_mb" -lt "$MIN_DISK_SPACE_MB" ]]; then
     error "Espace disque insuffisant. Requis: ${MIN_DISK_SPACE_MB} Mo, Disponible: ${available_mb} Mo"
   fi
