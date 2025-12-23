@@ -102,6 +102,9 @@ map_codename() {
     jammy|noble|focal|bionic) echo "$codename" ;;
     # Debian
     bookworm|bullseye|buster) echo "$codename" ;;
+    # Debian testing/unstable often reports codenames without a matching archive.
+    # We keep the codename as-is here; detect_archive_url will probe/fallback.
+    trixie|testing|unstable|sid) echo "$codename" ;;
     # Fedora (pas de codename, utiliser ID)
     *) echo "$codename" ;;
   esac
@@ -177,7 +180,21 @@ detect_archive_url() {
       
       # Mapper vers la base Ubuntu/Debian
       codename=$(map_codename "$codename")
-      echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-${codename}-full.tar.gz"
+
+      # Prefer an exact match when available.
+      local candidate="${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-${codename}-full.tar.gz"
+      if curl -fsI "$candidate" >/dev/null 2>&1; then
+        echo "$candidate"
+        return
+      fi
+
+      # Debian: fall back to bookworm if the codename doesn't have an archive.
+      if [[ "$distro_id" == "debian" ]]; then
+        echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-bookworm-full.tar.gz"
+        return
+      fi
+
+      error "Aucune archive pré-compilée trouvée pour '${codename}'. Utilisez une distro supportée ou définissez ARCHIVE_URL manuellement."
       ;;
     Darwin)
       if [[ "$arch" == "arm64" ]]; then
