@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Version de l'installeur
-INSTALLER_VERSION="1.5.0"
+INSTALLER_VERSION="1.6.0"
 
 # Configuration
 COLLECTION="nightly-250828"
@@ -255,6 +255,7 @@ map_package_name() {
     dnf)
       case "$pkg" in
         chezscheme) echo "chez-scheme" ;;
+        gawk) echo "gawk" ;;
         *) echo "$pkg" ;;
       esac
       ;;
@@ -321,6 +322,7 @@ fi
 command -v timeout &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name coreutils)"
 command -v unzip &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name unzip)"
 command -v git &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name git)"
+command -v awk &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name gawk)"
 
 # Installer tous les paquets en une seule fois
 if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
@@ -460,10 +462,11 @@ for script in "$HOME/.local/bin/pack" "$HOME/.local/bin/idris2" "$HOME/.local/bi
   fi
 done
 
-# Corriger aussi les chemins dans pack_app si présent
+# Corriger aussi les chemins dans pack_app si présent (seulement les scripts texte)
 if [[ -d "$HOME/.local/bin/pack_app" ]]; then
   for script in "$HOME/.local/bin/pack_app/"*; do
-    if [[ -f "$script" ]]; then
+    # Skip binary files (.so), only process text files
+    if [[ -f "$script" ]] && [[ ! "$script" =~ \.so$ ]]; then
       portable_sed_inplace "$script" "s|/home/[^/]*/\\.local/|$HOME/.local/|g"
       portable_sed_inplace "$script" "s|/Users/[^/]*/\\.local/|$HOME/.local/|g"
     fi
@@ -483,6 +486,70 @@ if [[ -f "$HOME/.zshrc" ]] && ! grep -q '.local/bin' "$HOME/.zshrc" 2>/dev/null;
 fi
 
 export PATH="$HOME/.local/bin:$PATH"
+
+# Configure SCHEMEHEAPDIRS for Chez Scheme boot files (needed on Fedora/Arch)
+# The pre-built binaries expect boot files in specific locations
+configure_scheme_paths() {
+  local chez_lib_dirs=""
+  
+  # Find directories containing scheme.boot (the actual boot file location)
+  # On Fedora, boot files are in /usr/lib64/csv<version>/ta6le/ or similar arch subdirs
+  local boot_file
+  boot_file=$(find /usr/lib64 /usr/lib /usr/local/lib /opt/homebrew/lib -name 'scheme.boot' 2>/dev/null | head -1 || true)
+  
+  if [[ -n "$boot_file" ]]; then
+    # Get the directory containing scheme.boot
+    local boot_dir
+    boot_dir=$(dirname "$boot_file")
+    chez_lib_dirs="$boot_dir"
+  else
+    # Fallback: search for csv* directories and their subdirs
+    for dir in /usr/lib64/csv*/ta6le /usr/lib/csv*/ta6le /usr/lib64/csv* /usr/lib/csv* /usr/local/lib/csv*; do
+      if [[ -d "$dir" ]]; then
+        chez_lib_dirs="${chez_lib_dirs:+$chez_lib_dirs:}$dir"
+      fi
+    done
+    
+    # Also check standard boot locations
+    for dir in /usr/lib/chez-scheme /usr/lib64/chez-scheme /usr/share/chez-scheme; do
+      if [[ -d "$dir" ]]; then
+        chez_lib_dirs="${chez_lib_dirs:+$chez_lib_dirs:}$dir"
+      fi
+    done
+  fi
+  
+  if [[ -n "$chez_lib_dirs" ]]; then
+    # Create chezscheme.boot symlink if only scheme.boot exists
+    # This is needed because pre-built binaries may expect chezscheme.boot
+    local first_dir="${chez_lib_dirs%%:*}"
+    if [[ -f "$first_dir/scheme.boot" ]] && [[ ! -f "$first_dir/chezscheme.boot" ]]; then
+      info "Création du lien chezscheme.boot -> scheme.boot"
+      sudo ln -sf "$first_dir/scheme.boot" "$first_dir/chezscheme.boot" 2>/dev/null || true
+    fi
+    
+    # Add SCHEMEHEAPDIRS to bashrc if not present
+    if ! grep -q 'SCHEMEHEAPDIRS' "$HOME/.bashrc" 2>/dev/null; then
+      echo "" >> "$HOME/.bashrc"
+      echo "# Chez Scheme boot files location (for Idris2)" >> "$HOME/.bashrc"
+      echo "export SCHEMEHEAPDIRS=\"$chez_lib_dirs\"" >> "$HOME/.bashrc"
+      info "SCHEMEHEAPDIRS configuré dans ~/.bashrc"
+    fi
+    
+    if [[ -f "$HOME/.zshrc" ]] && ! grep -q 'SCHEMEHEAPDIRS' "$HOME/.zshrc" 2>/dev/null; then
+      echo "" >> "$HOME/.zshrc"
+      echo "# Chez Scheme boot files location (for Idris2)" >> "$HOME/.zshrc"
+      echo "export SCHEMEHEAPDIRS=\"$chez_lib_dirs\"" >> "$HOME/.zshrc"
+    fi
+    
+    # Export for current session
+    export SCHEMEHEAPDIRS="$chez_lib_dirs"
+  fi
+}
+
+# On Fedora/Arch, pre-built binaries need SCHEMEHEAPDIRS
+if [[ "$PKG_MANAGER" == "dnf" ]] || [[ "$PKG_MANAGER" == "pacman" ]]; then
+  configure_scheme_paths
+fi
 
 # Vérification finale détaillée
 echo ""
@@ -660,6 +727,40 @@ else
   echo -e "${RED}           ERREUR D'INSTALLATION${NC}"
   echo -e "${RED}══════════════════════════════════════════════════════════════${NC}"
   echo ""
+  
+  # Check for Chez Scheme boot file issue
+  pack_error_output=$(pack info 2>&1 || true)
+  if echo "$pack_error_output" | grep -q "chezscheme.boot\|petite.boot\|cannot find compatible"; then
+    echo -e "  ${RED}✗ Erreur Chez Scheme : fichiers boot introuvables${NC}"
+    echo ""
+    echo "  Les binaires pré-compilés ne trouvent pas les fichiers boot de Chez Scheme."
+    echo "  Ce problème survient quand l'archive a été compilée sur une autre distribution."
+    echo ""
+    echo "  Solutions :"
+    echo ""
+    echo "  1. Définir SCHEMEHEAPDIRS et recharger le shell :"
+    echo "     Ajoutez à ~/.bashrc :"
+    
+    # Find chez scheme library directories
+    chez_dirs=""
+    for dir in /usr/lib64/csv* /usr/lib/csv* /usr/lib/chez-scheme /usr/lib64/chez-scheme; do
+      if [[ -d "$dir" ]]; then
+        chez_dirs="${chez_dirs:+$chez_dirs:}$dir"
+      fi
+    done
+    
+    if [[ -n "$chez_dirs" ]]; then
+      echo "       export SCHEMEHEAPDIRS=\"$chez_dirs\""
+    else
+      echo "       export SCHEMEHEAPDIRS=\"/usr/lib64/csv9.5:/usr/lib/csv9.5\""
+    fi
+    echo "     Puis : source ~/.bashrc"
+    echo ""
+    echo "  2. Installer depuis les sources (plus fiable, mais ~30-60 min) :"
+    echo "     curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install_pack.sh | bash"
+    echo ""
+    exit 1
+  fi
   
   if [[ "$PACK_OK" == "0" ]]; then
     echo -e "  ${RED}✗ pack n'est pas accessible${NC}"
