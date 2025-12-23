@@ -25,7 +25,7 @@ ensure_sudo_or_root() {
 }
 
 # Version de l'installeur
-INSTALLER_VERSION="1.6.1"
+INSTALLER_VERSION="1.6.2"
 
 # Configuration
 COLLECTION="nightly-250828"
@@ -495,6 +495,34 @@ for script in "$HOME/.local/bin/pack" "$HOME/.local/bin/idris2" "$HOME/.local/bi
     portable_sed_inplace "$script" "s|/Users/[^/]*/\\.local/|$HOME/.local/|g"
   fi
 done
+
+# Corriger aussi les chemins codés en dur dans les fichiers de runtime pack/Idris2
+# (certains fichiers générés par Chez/Idris2 contiennent "/home/builder/..." qui casse
+# la résolution des bibliothèques après extraction dans un autre HOME).
+fix_builder_paths() {
+  local bases=(
+    "$HOME/.local/state/pack"
+    "$HOME/.config/pack"
+    "$HOME/.cache/pack"
+    "$HOME/.local/bin/idris2_app"
+    "$HOME/.local/bin/idris2-lsp_app"
+  )
+
+  local base
+  for base in "${bases[@]}"; do
+    [[ -d "$base" ]] || continue
+
+    # Only edit text files where grep can see the pattern
+    while IFS= read -r file; do
+      # Skip shared objects even if grep misclassifies them
+      [[ "$file" =~ \.so$ ]] && continue
+      portable_sed_inplace "$file" "s|/home/builder|$HOME|g"
+      portable_sed_inplace "$file" "s|/Users/builder|$HOME|g"
+    done < <(grep -RIl --exclude='*.so' '/home/builder\|/Users/builder' "$base" 2>/dev/null || true)
+  done
+}
+
+fix_builder_paths
 
 # Corriger aussi les chemins dans pack_app si présent (seulement les scripts texte)
 if [[ -d "$HOME/.local/bin/pack_app" ]]; then
