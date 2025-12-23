@@ -219,9 +219,19 @@ install_stage_2() {
   export SCHEME
   info "Utilisation de SCHEME=$SCHEME"
 
+  export PATH="$BIN_DIR:$PATH"
   if [[ -x "$BIN_DIR/pack" ]]; then
-    success "pack est déjà installé."
-  else
+    if "$BIN_DIR/pack" info >/dev/null 2>&1; then
+      success "pack est déjà installé."
+    else
+      warn "pack est présent mais ne fonctionne pas (souvent une incompatibilité Chez Scheme / FASL)."
+      warn "Réinstallation de pack + Idris2 depuis les sources..."
+      rm -f "$BIN_DIR/pack"
+      rm -rf "$BIN_DIR/pack_app"
+    fi
+  fi
+
+  if [[ ! -x "$BIN_DIR/pack" ]]; then
     info "Téléchargement du script d'installation officiel..."
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -239,9 +249,13 @@ install_stage_2() {
     rm -rf "$tmpdir"
   fi
 
-  export PATH="$BIN_DIR:$PATH"
   if ! command -v pack &>/dev/null; then
     error "pack n'est pas accessible après l'installation."
+    exit 1
+  fi
+
+  if ! "$BIN_DIR/pack" info >/dev/null 2>&1; then
+    error "pack est installé mais ne fonctionne pas correctement (pack info échoue)."
     exit 1
   fi
 
