@@ -25,7 +25,7 @@ ensure_sudo_or_root() {
 }
 
 # Version de l'installeur
-INSTALLER_VERSION="1.6.2"
+INSTALLER_VERSION="1.6.3"
 
 # Configuration
 COLLECTION="nightly-250828"
@@ -639,8 +639,18 @@ PACK_OK=0
 IDRIS2_OK=0
 LSP_OK=0
 
+PACK_INFO_OUTPUT=""
+
 if command -v pack &>/dev/null; then
-  PACK_OK=1
+  set +e
+  PACK_INFO_OUTPUT=$(pack info 2>&1)
+  pack_rc=$?
+  set -e
+  if [[ $pack_rc -eq 0 ]]; then
+    PACK_OK=1
+  else
+    PACK_OK=0
+  fi
 fi
 
 if command -v idris2 &>/dev/null; then
@@ -663,12 +673,18 @@ show_install_summary() {
   if [[ "$PACK_OK" == "1" ]]; then
     # pack n'a pas d'option --version, on utilise pack info pour obtenir la collection
     local pack_collection
-    pack_collection=$(pack info 2>/dev/null | grep -i "collection" | head -1 || echo "$COLLECTION")
+    pack_collection=$(echo "$PACK_INFO_OUTPUT" | grep -i "collection" | head -1 || echo "$COLLECTION")
     echo -e "  ${GREEN}✓${NC} pack           : installé"
     echo "                    Chemin  : $HOME/.local/bin/pack"
     echo "                    $pack_collection"
   else
-    echo -e "  ${RED}✗${NC} pack           : NON INSTALLÉ"
+    if command -v pack &>/dev/null; then
+      echo -e "  ${RED}✗${NC} pack           : installé mais NON FONCTIONNEL"
+      echo "                    Chemin  : $HOME/.local/bin/pack"
+      echo "                    Erreur  : $(echo "$PACK_INFO_OUTPUT" | head -1)"
+    else
+      echo -e "  ${RED}✗${NC} pack           : NON INSTALLÉ"
+    fi
   fi
   echo ""
   
@@ -807,8 +823,27 @@ else
   echo -e "${RED}══════════════════════════════════════════════════════════════${NC}"
   echo ""
   
+  # Diagnostic pack
+  pack_error_output="$PACK_INFO_OUTPUT"
+  if [[ -z "$pack_error_output" ]]; then
+    pack_error_output=$(pack info 2>&1 || true)
+  fi
+
+  # Chez Scheme FASL mismatch (common on Fedora when using an archive built on another Fedora release)
+  if echo "$pack_error_output" | grep -q "incompatible fasl-object version"; then
+    echo -e "  ${RED}✗ Erreur Chez Scheme : incompatibilité de version (FASL)${NC}"
+    echo ""
+    echo "  Votre Chez Scheme est d'une version différente de celle utilisée pour compiler pack."
+    echo "  Sur Fedora, cela arrive quand on installe une archive construite sur une autre version de Fedora."
+    echo ""
+    echo "  Solution recommandée : relancer l'installation (le script choisit maintenant une archive Fedora spécifique à VERSION_ID quand elle existe)."
+    echo "    curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install.sh | bash -s -- --force"
+    echo ""
+    echo "  Détail : $pack_error_output" 
+    exit 1
+  fi
+
   # Check for Chez Scheme boot file issue
-  pack_error_output=$(pack info 2>&1 || true)
   if echo "$pack_error_output" | grep -q "chezscheme.boot\|petite.boot\|cannot find compatible"; then
     echo -e "  ${RED}✗ Erreur Chez Scheme : fichiers boot introuvables${NC}"
     echo ""
