@@ -15,7 +15,7 @@ ensure_sudo_or_root() {
     return 0
   fi
   if ! command -v sudo &>/dev/null; then
-    error "Cette installation nécessite 'sudo' (ou être root). Sur Fedora: exécutez d'abord 'dnf install -y sudo' en root, ou lancez ce script en root." 
+    error "Cette installation nécessite 'sudo' (ou être root). Installez sudo puis relancez : Debian/Ubuntu: 'apt-get install -y sudo' ; Fedora: 'dnf install -y sudo' ; Arch: 'pacman -Sy --noconfirm sudo'."
   fi
   # Try to validate sudo early to fail fast with a clear message
   if ! sudo -n true 2>/dev/null; then
