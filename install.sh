@@ -109,7 +109,6 @@ map_codename() {
 
 # Détecter l'OS et choisir la bonne archive
 detect_archive_url() {
-  INSTALL_MODE="prebuilt"
   if [[ -n "${ARCHIVE_URL:-}" ]]; then
     # URL fournie manuellement
     echo "$ARCHIVE_URL"
@@ -131,36 +130,35 @@ detect_archive_url() {
       case "$distro_id" in
         fedora)
           # Fedora archives are sensitive to the Chez Scheme version shipped by Fedora.
-          # We try a version-specific asset first (e.g. fedora43). If no matching archive
-          # exists, we fall back to a source build rather than a potentially incompatible
-          # generic archive.
+          # We only support fast *prebuilt* installs here.
+          # Currently supported: Fedora 40 (baseline archive) and Fedora 43 (fedora43 archive).
           local fedora_ver=""
           if [[ -f /etc/os-release ]]; then
             fedora_ver=$(grep '^VERSION_ID=' /etc/os-release | cut -d= -f2 | tr -d '"' || true)
             fedora_ver=${fedora_ver%%.*}
           fi
 
-          if [[ -n "$fedora_ver" ]]; then
-            local candidate="${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-fedora${fedora_ver}-full.tar.gz"
-            if curl -fsI "$candidate" >/dev/null 2>&1; then
-              echo "$candidate"
-              return
-            fi
+          if [[ -z "$fedora_ver" ]]; then
+            error "Fedora détectée mais VERSION_ID est introuvable. Installation binaire impossible."
+          fi
 
-            # Fedora 40 is the current baseline generic archive.
-            if [[ "$fedora_ver" == "40" ]]; then
-              echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-fedora-full.tar.gz"
-              return
-            fi
-
-            INSTALL_MODE="source"
-            echo ""
+          if [[ "$fedora_ver" == "40" ]]; then
+            # Baseline Fedora archive (built on Fedora 40)
+            echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-fedora-full.tar.gz"
             return
           fi
 
-          # Unknown VERSION_ID: try the generic archive.
-          echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-fedora-full.tar.gz"
-          return
+          if [[ "$fedora_ver" == "43" ]]; then
+            local candidate="${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-fedora43-full.tar.gz"
+            # Early check to give a clearer error than a later curl/tar failure.
+            if ! curl -fsI "$candidate" >/dev/null 2>&1; then
+              error "Fedora 43 détectée mais l'archive binaire Fedora 43 n'est pas encore disponible dans la release."
+            fi
+            echo "$candidate"
+            return
+          fi
+
+          error "Fedora ${fedora_ver} n'est pas supportée en binaire pour le moment (support: Fedora 40 et Fedora 43)."
           ;;
         arch|manjaro)
           echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-arch-full.tar.gz"
@@ -195,13 +193,6 @@ detect_archive_url() {
 }
 
 ARCHIVE_URL=$(detect_archive_url)
-if [[ "${INSTALL_MODE:-prebuilt}" == "source" ]]; then
-  warn "Aucune archive pré-compilée compatible détectée pour cette Fedora."
-  warn "Installation depuis les sources (~30-60 min) afin d'éviter les incompatibilités Chez Scheme (FASL)."
-  curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install_pack.sh | bash
-  exit 0
-fi
-
 info "Archive détectée: $(basename "$ARCHIVE_URL")"
 
 # Vérifier l'espace disque disponible

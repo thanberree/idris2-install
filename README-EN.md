@@ -11,7 +11,7 @@ Pre-compiled binaries for [Idris2](https://www.idris-lang.org/) and [pack](https
 |----------|----------|
 | Ubuntu | 22.04 (jammy), 24.04 (noble) |
 | Debian | 12 (bookworm) |
-| Fedora | 40 |
+| Fedora | 40 (baseline), 43 (dedicated archive) |
 | Arch Linux | rolling |
 | Linux Mint | 21.x, 22.x (via Ubuntu) |
 

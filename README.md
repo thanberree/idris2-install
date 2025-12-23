@@ -11,7 +11,7 @@
 |------------|----------|
 | Ubuntu | 22.04 (jammy), 24.04 (noble) |
 | Debian | 12 (bookworm) |
-| Fedora | 40 |
+| Fedora | 40 (archive générique), 43 (archive dédiée) |
 | Arch Linux | rolling |
 | Linux Mint | 21.x, 22.x (via Ubuntu) |
 
