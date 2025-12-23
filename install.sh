@@ -109,6 +109,7 @@ map_codename() {
 
 # Détecter l'OS et choisir la bonne archive
 detect_archive_url() {
+  INSTALL_MODE="prebuilt"
   if [[ -n "${ARCHIVE_URL:-}" ]]; then
     # URL fournie manuellement
     echo "$ARCHIVE_URL"
@@ -130,8 +131,9 @@ detect_archive_url() {
       case "$distro_id" in
         fedora)
           # Fedora archives are sensitive to the Chez Scheme version shipped by Fedora.
-          # We try a version-specific asset first (e.g. fedora43) and fall back to the
-          # generic fedora archive if not available.
+          # We try a version-specific asset first (e.g. fedora43). If no matching archive
+          # exists, we fall back to a source build rather than a potentially incompatible
+          # generic archive.
           local fedora_ver=""
           if [[ -f /etc/os-release ]]; then
             fedora_ver=$(grep '^VERSION_ID=' /etc/os-release | cut -d= -f2 | tr -d '"' || true)
@@ -144,8 +146,19 @@ detect_archive_url() {
               echo "$candidate"
               return
             fi
+
+            # Fedora 40 is the current baseline generic archive.
+            if [[ "$fedora_ver" == "40" ]]; then
+              echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-fedora-full.tar.gz"
+              return
+            fi
+
+            INSTALL_MODE="source"
+            echo ""
+            return
           fi
 
+          # Unknown VERSION_ID: try the generic archive.
           echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-fedora-full.tar.gz"
           return
           ;;
@@ -182,6 +195,13 @@ detect_archive_url() {
 }
 
 ARCHIVE_URL=$(detect_archive_url)
+if [[ "${INSTALL_MODE:-prebuilt}" == "source" ]]; then
+  warn "Aucune archive pré-compilée compatible détectée pour cette Fedora."
+  warn "Installation depuis les sources (~30-60 min) afin d'éviter les incompatibilités Chez Scheme (FASL)."
+  curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install_pack.sh | bash
+  exit 0
+fi
+
 info "Archive détectée: $(basename "$ARCHIVE_URL")"
 
 # Vérifier l'espace disque disponible
