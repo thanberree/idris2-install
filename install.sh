@@ -1,8 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Root / sudo handling
+run_as_root() {
+  if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+ensure_sudo_or_root() {
+  if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+    return 0
+  fi
+  if ! command -v sudo &>/dev/null; then
+    error "Cette installation nécessite 'sudo' (ou être root). Sur Fedora: exécutez d'abord 'dnf install -y sudo' en root, ou lancez ce script en root." 
+  fi
+  # Try to validate sudo early to fail fast with a clear message
+  if ! sudo -n true 2>/dev/null; then
+    info "Une élévation de privilèges (sudo) est nécessaire. Saisissez votre mot de passe si demandé."
+    sudo true || error "Échec de l'authentification sudo. Relancez avec: curl -fsSL ... | sudo bash"
+  fi
+}
+
 # Version de l'installeur
-INSTALLER_VERSION="1.6.0"
+INSTALLER_VERSION="1.6.1"
 
 # Configuration
 COLLECTION="nightly-250828"
@@ -327,20 +350,21 @@ command -v awk &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_pa
 # Installer tous les paquets en une seule fois
 if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
   PACKAGES_TO_INSTALL=$(echo "$PACKAGES_TO_INSTALL" | xargs)  # trim whitespace
+  ensure_sudo_or_root
   case "$PKG_MANAGER" in
     apt)
       need_pkg_update
       info "Installation des dépendances (apt): $PACKAGES_TO_INSTALL"
-      sudo apt-get install -y $PACKAGES_TO_INSTALL
+      run_as_root apt-get install -y $PACKAGES_TO_INSTALL
       ;;
     dnf)
       info "Installation des dépendances (dnf): $PACKAGES_TO_INSTALL"
-      sudo dnf install -y $PACKAGES_TO_INSTALL
+      run_as_root dnf install -y $PACKAGES_TO_INSTALL
       ;;
     pacman)
       need_pkg_update
       info "Installation des dépendances (pacman): $PACKAGES_TO_INSTALL"
-      sudo pacman -S --noconfirm $PACKAGES_TO_INSTALL
+      run_as_root pacman -S --noconfirm $PACKAGES_TO_INSTALL
       ;;
     brew)
       info "Installation des dépendances (brew): $PACKAGES_TO_INSTALL"
@@ -384,24 +408,29 @@ ensure_chezscheme_accessible() {
     # Sur macOS, utiliser /usr/local/bin (pas /usr/bin - protégé par SIP)
     if [[ ! -x /usr/local/bin/chezscheme ]]; then
       info "Création du lien /usr/local/bin/chezscheme -> $chez_bin"
-      sudo mkdir -p /usr/local/bin
-      sudo ln -sf "$chez_bin" /usr/local/bin/chezscheme
+      ensure_sudo_or_root
+      run_as_root mkdir -p /usr/local/bin
+      run_as_root ln -sf "$chez_bin" /usr/local/bin/chezscheme
     fi
     if [[ ! -x /usr/local/bin/chez ]] && [[ "$chez_bin" != *"chezscheme" ]]; then
-      sudo ln -sf "$chez_bin" /usr/local/bin/chez
+      ensure_sudo_or_root
+      run_as_root ln -sf "$chez_bin" /usr/local/bin/chez
     fi
   else
     # Sur Linux, utiliser /usr/bin si possible, sinon /usr/local/bin
     if [[ ! -x /usr/bin/chezscheme ]]; then
       if [[ -x /usr/bin/scheme ]]; then
         info "Création du lien /usr/bin/chezscheme -> /usr/bin/scheme"
-        sudo ln -sf /usr/bin/scheme /usr/bin/chezscheme
+        ensure_sudo_or_root
+        run_as_root ln -sf /usr/bin/scheme /usr/bin/chezscheme
       elif [[ -x /usr/bin/chez ]]; then
         info "Création du lien /usr/bin/chezscheme -> /usr/bin/chez"
-        sudo ln -sf /usr/bin/chez /usr/bin/chezscheme
+        ensure_sudo_or_root
+        run_as_root ln -sf /usr/bin/chez /usr/bin/chezscheme
       else
         info "Création du lien /usr/bin/chezscheme -> $chez_bin"
-        sudo ln -sf "$chez_bin" /usr/bin/chezscheme
+        ensure_sudo_or_root
+        run_as_root ln -sf "$chez_bin" /usr/bin/chezscheme
       fi
     fi
   fi
