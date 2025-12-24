@@ -12,8 +12,8 @@
 | Ubuntu | 22.04 (jammy), 24.04 (noble) |
 | Debian | 12 (bookworm) |
 | Fedora | 40, 43 |
-| Arch Linux | oui |
-| Linux Mint | 21.x, 22.x |
+| Arch Linux |  |
+| Linux Mint | 21, 22 |
 
 
 ## Installation
