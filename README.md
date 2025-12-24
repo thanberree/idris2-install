@@ -7,13 +7,13 @@
 
 
 **Plateformes supportées :**
-| Plateforme | Versions |
-|------------|----------|
-| Ubuntu | 22.04 (jammy), 24.04 (noble) |
-| Debian | 12 (bookworm) |
-| Fedora | 40, 43 |
-| Arch Linux |  |
-| Linux Mint | 21, 22 |
+| Plateforme                          | Versions                              |
+|-------------------------------------|---------------------------------------|
+| Ubuntu                              | 22.04 (jammy), 24.04 (noble)          |
+| Debian                              | 12 (bookworm), 13 (trixie)            |
+| Fedora                              | 40, 43                                |
+| Arch Linux                          |                                       |
+| Linux Mint                          | 21, 22                                |
 
 
 ## Installation
