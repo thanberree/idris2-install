@@ -1,0 +1,5 @@
+# Liste d'extensions VS Code recommandées pour le cours.
+# Une extension par ligne. Les lignes vides et celles commençant par # sont ignorées.
+
+meraymond.idris-vscode
+gruntfuggly.todo-tree
