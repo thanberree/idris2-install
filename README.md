@@ -1,6 +1,5 @@
-🇬🇧 *[English version](README-EN.md)*
 
-# Installation de binaires pré-compilés pour [Idris2](https://www.idris-lang.org/) et le gestionnaire de paquets [pack](https://github.com/stefan-hoeck/idris2-pack) [collection : `nightly-250828` (Idris2 0.7.0)]
+# Script d'installation rapide d'[Idris2](https://www.idris-lang.org/) et [pack](https://github.com/stefan-hoeck/idris2-pack) [`nightly-250828` (Idris2 0.7.0)]
 
 
 > Vous cherchez l'installation officielle depuis les sources ? Voir le [guide d'installation idris2-pack](https://github.com/stefan-hoeck/idris2-pack/blob/main/INSTALL.md).
@@ -18,7 +17,7 @@
 
 ## Prérequis
 
-- Avoir un **utilisateur non-root** (ne pas lancer le script avec `sudo`) avec des **droits sudo**.
+- Avoir un **utilisateur non-root** avec des **droits sudo**.
 - Avoir la commande `curl`.
 
 Si `curl` n'est pas installé :
@@ -35,6 +34,7 @@ curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/inst
 ```
 
 Ouvrez ensuite un nouveau terminal (ou exécutez `source ~/.bashrc` / `source ~/.zshrc`) et vérifiez :
+
 ```bash
 pack info
 idris2 --version
