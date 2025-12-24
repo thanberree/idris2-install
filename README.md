@@ -40,6 +40,22 @@ idris2 --version
 idris2-lsp --version
 ```
 
+## VS Code (extensions)
+
+Ce dépôt ne cherche pas à installer VS Code automatiquement.
+
+En revanche, si la commande `code` est disponible, vous pouvez installer les extensions requises avec :
+
+```bash
+./install-vscode-extensions.sh <extension-id> [<extension-id> ...]
+```
+
+Ou via un fichier :
+
+```bash
+./install-vscode-extensions.sh --from-file vscode-extensions.txt
+```
+
 ### Réinstallation
 
 Si vous avez déjà une installation et souhaitez réinstaller :
