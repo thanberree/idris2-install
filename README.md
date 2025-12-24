@@ -15,6 +15,12 @@
 | Arch Linux | rolling |
 | Linux Mint | 21.x, 22.x (via Ubuntu) |
 
+Notes importantes :
+- Cet installeur est **binaire uniquement** : il ne bascule pas automatiquement vers une installation depuis les sources.
+- Si votre distribution/version ne correspond pas exactement à une archive (ex: Debian testing/sid, Fedora 42, etc.), le script **refuse** ou **demande confirmation** selon le cas.
+- Arch (rolling) et certaines distributions dérivées (ex: Mint) peuvent être incompatibles après une mise à jour (Chez Scheme / glibc) : une confirmation peut être demandée.
+- Pour un usage scripté (CI), vous pouvez ajouter `--yes` (et `--allow-fallback` si un repli est proposé).
+
 
 ## Installation
 
