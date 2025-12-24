@@ -16,6 +16,18 @@
 | Linux Mint                          | 21, 22                                |
 
 
+## Prérequis
+
+- Avoir un **utilisateur non-root** (ne pas lancer le script avec `sudo`) avec des **droits sudo**.
+- Avoir la commande `curl`.
+
+Si `curl` n'est pas installé :
+
+- Ubuntu / Debian / Mint : `sudo apt-get update && sudo apt-get install -y curl`
+- Fedora : `sudo dnf install -y curl`
+- Arch Linux : `sudo pacman -Sy --noconfirm curl`
+
+
 ## Installation
 
 ```bash
