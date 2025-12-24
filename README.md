@@ -1,5 +1,5 @@
 
-# Script d'installation rapide d'[Idris2](https://www.idris-lang.org/) et [pack](https://github.com/stefan-hoeck/idris2-pack) [`nightly-250828` (Idris2 0.7.0)]
+# Script d'installation rapide d'[Idris2](https://www.idris-lang.org/) et [pack](https://github.com/stefan-hoeck/idris2-pack) [`nightly-250828`]
 
 
 > Vous cherchez l'installation officielle depuis les sources ? Voir le [guide d'installation idris2-pack](https://github.com/stefan-hoeck/idris2-pack/blob/main/INSTALL.md).
