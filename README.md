@@ -15,9 +15,6 @@
 | Arch Linux | oui |
 | Linux Mint | 21.x, 22.x |
 
-Si votre système n'est pas supporté, utilisez l'installation officielle depuis les sources :
-`curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install_pack.sh | bash`
-
 
 ## Installation
 
@@ -52,14 +49,7 @@ L'archive contient :
 - Compilateur Idris2 (0.7.0)
 - Gestionnaire de paquets pack
 - idris2-lsp (serveur LSP pour VS Code)
-- Bibliothèques pré-compilées : base, contrib, linear, network, prelude
-- Paquets additionnels : ansi, containers, elab-pretty, elab-util, getopts, hedgehog, prettier-ansi, pretty-show, prim, sop
+- Bibliothèques pré-compilées : base, contrib, linear, network, prelude, ansi, containers, elab-pretty, elab-util, getopts, hedgehog, prettier-ansi, pretty-show, prim, sop
 
-## Utilisation avec VS Code
 
-1. Installez l'extension [Idris2-LSP](https://marketplace.visualstudio.com/items?itemName=meraymond.idris-vscode) dans VS Code
-2. L'extension devrait automatiquement détecter `idris2-lsp` si votre PATH est configuré
 
-## Licence
-
-Les scripts d'installation sont fournis tels quels. Idris2 et pack sont soumis à leurs licences respectives.
