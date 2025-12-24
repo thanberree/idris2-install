@@ -11,15 +11,12 @@ Pre-compiled binaries for [Idris2](https://www.idris-lang.org/) and [pack](https
 |----------|----------|
 | Ubuntu | 22.04 (jammy), 24.04 (noble) |
 | Debian | 12 (bookworm) |
-| Fedora | 40 (baseline), 43 (dedicated archive) |
-| Arch Linux | rolling |
-| Linux Mint | 21.x, 22.x (via Ubuntu) |
+| Fedora | 40, 43 |
+| Arch Linux | yes |
+| Linux Mint | 21.x, 22.x |
 
-Important notes:
-- This is a **binary-only** installer: it will not automatically switch to a from-source installation.
-- If your distro/version does not match an available archive (e.g. Debian testing/sid, Fedora 42, etc.), the script will **refuse** or **ask for confirmation** depending on the case.
-- Arch (rolling) and some derived distros (e.g. Mint) can become incompatible after upgrades (Chez Scheme / glibc): a confirmation prompt may appear.
-- For non-interactive/CI usage, add `--yes` (and `--allow-fallback` when a fallback is proposed).
+If your system is not supported, use the from-source installer:
+`curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install_pack.sh | bash`
 
 > Looking for the official installation from source? See [idris2-pack install guide](https://github.com/stefan-hoeck/idris2-pack/blob/main/INSTALL.md).
 

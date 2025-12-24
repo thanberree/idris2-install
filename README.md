@@ -11,15 +11,12 @@
 |------------|----------|
 | Ubuntu | 22.04 (jammy), 24.04 (noble) |
 | Debian | 12 (bookworm) |
-| Fedora | 40 (archive générique), 43 (archive dédiée) |
-| Arch Linux | rolling |
-| Linux Mint | 21.x, 22.x (via Ubuntu) |
+| Fedora | 40, 43 |
+| Arch Linux | oui |
+| Linux Mint | 21.x, 22.x |
 
-Notes importantes :
-- Cet installeur est **binaire uniquement** : il ne bascule pas automatiquement vers une installation depuis les sources.
-- Si votre distribution/version ne correspond pas exactement à une archive (ex: Debian testing/sid, Fedora 42, etc.), le script **refuse** ou **demande confirmation** selon le cas.
-- Arch (rolling) et certaines distributions dérivées (ex: Mint) peuvent être incompatibles après une mise à jour (Chez Scheme / glibc) : une confirmation peut être demandée.
-- Pour un usage scripté (CI), vous pouvez ajouter `--yes` (et `--allow-fallback` si un repli est proposé).
+Si votre système n'est pas supporté, utilisez l'installation officielle depuis les sources :
+`curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install_pack.sh | bash`
 
 
 ## Installation
