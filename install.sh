@@ -344,10 +344,10 @@ detect_archive_url() {
           error "Fedora ${fedora_ver} n'est pas supportée en binaire pour le moment (support: Fedora 40 et Fedora 43)."
           ;;
         arch|manjaro)
-          warn "Arch/Manjaro détecté. Arch est une distribution rolling : une archive pré-compilée peut devenir incompatible après une mise à jour (Chez Scheme / glibc)."
+          warn "Arch/Manjaro détecté. Arch est une distribution rolling : une archive pré-compilée peut devenir incompatible après une mise à jour (Chez Scheme / glibc)." >&2
           confirm_or_abort \
             "Continuer quand même avec l'archive 'arch' ?" \
-            "Arch détecté mais confirmation impossible (pas de TTY). Relancez avec: curl ... | bash -s -- --yes"
+            "Arch détecté mais confirmation impossible (pas de TTY). Relancez avec: curl ... | bash -s -- --yes" >&2
           echo "${RELEASE_BASE_URL}/idris2-pack-${COLLECTION}-arch-full.tar.gz"
           return
           ;;
