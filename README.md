@@ -40,36 +40,6 @@ idris2 --version
 idris2-lsp --version
 ```
 
-## VS Code (extensions)
-
-Ce dépôt ne cherche pas à installer VS Code automatiquement.
-
-En revanche, si la commande `code` est disponible, vous pouvez installer les extensions requises avec :
-
-```bash
-./install-vscode-extensions.sh <extension-id> [<extension-id> ...]
-```
-
-Ou via un fichier :
-
-```bash
-./install-vscode-extensions.sh --from-file vscode-extensions.txt
-```
-
-La liste recommandée pour le cours est fournie dans `vscode-extensions.txt`.
-
-Extensions personnelles : si vous avez un fichier `.vsix`, vous pouvez aussi l'installer :
-
-```bash
-./install-vscode-extensions.sh --vsix /chemin/vers/mon-extension.vsix
-```
-
-Et si vous voulez appliquer des settings VS Code au niveau du projet (fichier `.vscode/settings.json`) :
-
-```bash
-./install-vscode-extensions.sh --recommended --apply-workspace-settings vscode-settings.json
-```
-
 ### Réinstallation
 
 Si vous avez déjà une installation et souhaitez réinstaller :
