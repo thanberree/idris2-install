@@ -598,6 +598,7 @@ command -v timeout &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(ma
 command -v unzip &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name unzip)"
 command -v git &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name git)"
 command -v awk &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name gawk)"
+command -v wget &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name wget)"
 
 # Installer tous les paquets en une seule fois
 if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
