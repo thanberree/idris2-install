@@ -62,10 +62,26 @@ function Invoke-WebDownload([string]$Url, [string]$OutFile) {
     New-Item -ItemType Directory -Force -Path $outDir | Out-Null
   }
 
-  if ($PSVersionTable.PSVersion.Major -lt 6) {
-    Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $OutFile
-  } else {
-    Invoke-WebRequest -Uri $Url -OutFile $OutFile
+  $oldProgressPreference = $ProgressPreference
+  try {
+    # Ensure progress is visible in most interactive hosts.
+    $ProgressPreference = 'Continue'
+
+    # Prefer BITS when available: it shows clear progress and is resilient.
+    $bits = Get-Command Start-BitsTransfer -ErrorAction SilentlyContinue
+    if ($null -ne $bits) {
+      Start-BitsTransfer -Source $Url -Destination $OutFile -ErrorAction Stop
+      return
+    }
+
+    # Fallback to Invoke-WebRequest.
+    if ($PSVersionTable.PSVersion.Major -lt 6) {
+      Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $OutFile
+    } else {
+      Invoke-WebRequest -Uri $Url -OutFile $OutFile
+    }
+  } finally {
+    $ProgressPreference = $oldProgressPreference
   }
 }
 
@@ -194,11 +210,10 @@ try {
       return
     }
 
-    Write-Err "SHA256 mismatch. Expected: $ExpectedSha256"
-    Write-Err "Actual:           $actual"
-
     if ($hadExistingDownload) {
-      Write-Warn 'The existing downloaded file looks corrupted/incomplete. Re-downloading once...'
+      # Not a hard error: we can recover automatically by re-downloading.
+      Write-Warn 'Existing download checksum mismatch; it may be corrupted/incomplete.'
+      Write-Warn 'Re-downloading once...'
       try {
         Remove-Item -Force $downloadPath
       } catch {
@@ -212,14 +227,16 @@ try {
       Write-Info 'Verifying SHA256 (second attempt)...'
       $actual2 = Get-Sha256 -Path $downloadPath
       if ($actual2 -ne $ExpectedSha256.ToLowerInvariant()) {
-        Write-Err "SHA256 mismatch again. Expected: $ExpectedSha256"
-        Write-Err "Actual:                $actual2"
+        Write-Err "SHA256 mismatch. Expected: $ExpectedSha256"
+        Write-Err "Actual:           $actual2"
         throw 'Checksum verification failed.'
       }
       Write-Info 'Checksum OK.'
       return
     }
 
+    Write-Err "SHA256 mismatch. Expected: $ExpectedSha256"
+    Write-Err "Actual:           $actual"
     Write-Warn 'Delete the downloaded file and try again (it may be incomplete/corrupted).'
     throw 'Checksum verification failed.'
   }
