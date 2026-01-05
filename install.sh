@@ -557,6 +557,47 @@ map_package_name() {
   esac
 }
 
+# Ensure student-required commands exist (for submission scripts).
+# Commands: uuidgen, sh, awk, grep, stty, date, hostname, whoami, uname
+ensure_student_required_commands() {
+  # Helper to append a package if a command is missing.
+  # Usage: add_pkg_if_missing_cmd <cmd> <pkg>
+  add_pkg_if_missing_cmd() {
+    local cmd="$1"
+    local pkg="$2"
+    if ! command -v "$cmd" &>/dev/null; then
+      PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name "$pkg")"
+    fi
+  }
+
+  # Most of these come from coreutils/grep/gawk, but we make it explicit.
+  add_pkg_if_missing_cmd awk gawk
+  add_pkg_if_missing_cmd grep grep
+  add_pkg_if_missing_cmd stty coreutils
+  add_pkg_if_missing_cmd date coreutils
+  add_pkg_if_missing_cmd whoami coreutils
+  add_pkg_if_missing_cmd uname coreutils
+
+  # /bin/sh is normally present; if not, ensure bash exists.
+  add_pkg_if_missing_cmd sh bash
+
+  # hostname package name differs on Arch.
+  if ! command -v hostname &>/dev/null; then
+    case "$PKG_MANAGER" in
+      pacman) PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL inetutils" ;;
+      *) PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name hostname)" ;;
+    esac
+  fi
+
+  # uuidgen package name differs on Debian/Ubuntu vs Fedora/Arch.
+  if ! command -v uuidgen &>/dev/null; then
+    case "$PKG_MANAGER" in
+      apt) PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL uuid-runtime" ;;
+      *) PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL util-linux" ;;
+    esac
+  fi
+}
+
 # Vérifier Chez Scheme
 # Note: sur Arch, chez-scheme n'est pas dans les dépôts officiels mais dans AUR
 # Note: sur macOS, Homebrew installe 'chez' pas 'chezscheme'
@@ -600,6 +641,9 @@ command -v git &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_pa
 command -v awk &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name gawk)"
 command -v wget &>/dev/null || PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $(map_package_name wget)"
 
+# Ensure commands needed by student submission scripts.
+ensure_student_required_commands
+
 # Installer tous les paquets en une seule fois
 if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
   PACKAGES_TO_INSTALL=$(echo "$PACKAGES_TO_INSTALL" | xargs)  # trim whitespace
@@ -608,7 +652,7 @@ if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
     apt)
       need_pkg_update
       info "Installation des dépendances (apt): $PACKAGES_TO_INSTALL"
-      run_as_root apt-get install -y $PACKAGES_TO_INSTALL
+      run_as_root env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get install -y $PACKAGES_TO_INSTALL
       ;;
     dnf)
       info "Installation des dépendances (dnf): $PACKAGES_TO_INSTALL"
@@ -628,6 +672,11 @@ if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
       ;;
   esac
 fi
+
+# Verify student-required commands are available now.
+for _cmd in uuidgen sh awk grep stty date hostname whoami uname; do
+  command -v "$_cmd" &>/dev/null || error "Commande requise introuvable après installation: '$_cmd'"
+done
 
 # Vérifier que chezscheme est accessible
 # Sur Linux: créer un symlink dans /usr/local/bin si nécessaire
