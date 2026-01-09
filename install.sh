@@ -740,6 +740,70 @@ ensure_chezscheme_accessible() {
 
 ensure_chezscheme_accessible
 
+# Vérifier que la version de Chez Scheme est compatible
+# L'archive focal est compilée avec Chez 9.5, pas 10.x
+check_chez_version_compatibility() {
+  local scheme_version=""
+  local scheme_cmd=""
+  
+  # Trouver la commande scheme
+  if command -v scheme &>/dev/null; then
+    scheme_cmd="scheme"
+  elif command -v chezscheme &>/dev/null; then
+    scheme_cmd="chezscheme"
+  elif command -v chez &>/dev/null; then
+    scheme_cmd="chez"
+  fi
+  
+  if [[ -z "$scheme_cmd" ]]; then
+    return 0  # Pas de scheme trouvé, la vérification passera après installation apt
+  fi
+  
+  # Récupérer la version
+  scheme_version=$($scheme_cmd --version 2>&1 | head -1 || echo "unknown")
+  
+  # Détecter les versions 10.x qui sont incompatibles avec l'archive focal (compilée avec 9.5)
+  if [[ "$scheme_version" =~ ^10\. ]] || [[ "$scheme_version" =~ "pre-release" ]]; then
+    echo ""
+    echo -e "${RED}══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${RED}       CONFLIT DE VERSION CHEZ SCHEME${NC}"
+    echo -e "${RED}══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "  Version détectée : ${BOLD}$scheme_version${NC}"
+    echo -e "  Version requise  : ${BOLD}9.5.x${NC} (fournie par apt sur Ubuntu 20.04)"
+    echo ""
+    echo "  Vous avez une version de Chez Scheme installée manuellement"
+    echo "  (probablement depuis GitHub ou une ancienne installation pack)."
+    echo ""
+    echo "  Cette version est incompatible avec les binaires pré-compilés."
+    echo ""
+    echo -e "${YELLOW}Solutions :${NC}"
+    echo ""
+    echo "  1. Désinstaller l'ancienne version de Chez Scheme :"
+    echo "     - Supprimer ~/scheme* ou /usr/local/lib/csv*"
+    echo "     - Vérifier: which scheme && ls -la /usr/lib/csv*"
+    echo ""
+    echo "  2. Utiliser la version apt (recommandé) :"
+    echo "     sudo apt install --reinstall chezscheme"
+    echo "     hash -r  # Rafraîchir le cache des commandes"
+    echo ""
+    echo "  3. Forcer la variable SCHEMEHEAPDIRS vers apt :"
+    echo "     export SCHEMEHEAPDIRS=/usr/lib/csv9.5/ta6le"
+    echo ""
+    echo -e "${BLUE}[Contexte]${NC} scheme trouvé: $(which $scheme_cmd)"
+    echo -e "${BLUE}[Contexte]${NC} SCHEMEHEAPDIRS=${SCHEMEHEAPDIRS:-<non défini>}"
+    echo ""
+    
+    if [[ "$FORCE" == "1" ]]; then
+      warn "Option --force : on continue malgré le conflit de version..."
+    else
+      error "Résolvez le conflit Chez Scheme puis relancez l'installation."
+    fi
+  fi
+}
+
+check_chez_version_compatibility
+
 # Téléchargement et installation
 info "Téléchargement des binaires Idris2 + pack..."
 mkdir -p "$HOME/.local/bin" "$HOME/.local/state" "$HOME/.config" "$HOME/.cache"
@@ -947,16 +1011,18 @@ PACK_INFO_FIRSTLINE=""
 IDRIS2_VERSION_LINE=""
 IDRIS2_LSP_VERSION_LINE=""
 
+# Pour pack: on vérifie juste que le binaire existe et est exécutable.
+# On n'exécute PAS "pack info" car cela déclenche un cache network de ~195 paquets
+# qui prend plusieurs minutes sans feedback.
 if [[ -x "$HOME/.local/bin/pack" ]]; then
-  set +e
-  PACK_INFO_OUTPUT=$($HOME/.local/bin/pack info 2>&1)
-  pack_rc=$?
-  set -e
-  PACK_INFO_FIRSTLINE=$(echo "$PACK_INFO_OUTPUT" | head -1 | tr -d '\r')
-  if [[ $pack_rc -eq 0 ]]; then
-    PACK_OK=1
+  PACK_OK=1
+  # Lire la collection depuis le fichier de config (pas de network)
+  if [[ -f "$HOME/.pack/user/pack.toml" ]]; then
+    PACK_INFO_FIRSTLINE="Package Collection  : $(grep -m1 'collection' "$HOME/.pack/user/pack.toml" | cut -d'"' -f2 || echo 'unknown')"
+  elif [[ -f "$HOME/.config/pack/pack.toml" ]]; then
+    PACK_INFO_FIRSTLINE="Package Collection  : $(grep -m1 'collection' "$HOME/.config/pack/pack.toml" | cut -d'"' -f2 || echo 'unknown')"
   else
-    PACK_OK=0
+    PACK_INFO_FIRSTLINE="Package Collection  : $COLLECTION"
   fi
 fi
 

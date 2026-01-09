@@ -208,6 +208,27 @@ echo -e "${BOLD}Autres fichiers Idris2:${NC}"
 check_and_add "$HOME/.idris2" "~/.idris2/ (cache/config Idris2)"
 echo ""
 
+# Anciennes installations manuelles de Chez Scheme (peuvent causer des conflits)
+echo -e "${BOLD}Chez Scheme (installations manuelles potentielles):${NC}"
+CHEZ_MANUAL_FOUND=0
+for dir in "$HOME/scheme"* "$HOME/ChezScheme"* "$HOME/.local/lib/csv"*; do
+  if [[ -d "$dir" ]]; then
+    check_and_add "$dir" "$dir (installation manuelle Chez Scheme)"
+    CHEZ_MANUAL_FOUND=1
+  fi
+done
+# Vérifier aussi /usr/local/lib/csv* (nécessite sudo pour supprimer)
+for dir in /usr/local/lib/csv*; do
+  if [[ -d "$dir" ]]; then
+    echo -e "  ${YELLOW}⚠${NC} $dir (installation système, utiliser: sudo rm -rf $dir)"
+    CHEZ_MANUAL_FOUND=1
+  fi
+done
+if [[ "$CHEZ_MANUAL_FOUND" == "0" ]]; then
+  echo "  (aucune installation manuelle détectée)"
+fi
+echo ""
+
 # Rien trouvé ?
 if [[ ${#FOUND_ITEMS[@]} -eq 0 ]]; then
   echo -e "${GREEN}Aucune installation d'Idris2/pack détectée.${NC}"
