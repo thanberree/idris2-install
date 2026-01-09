@@ -231,9 +231,13 @@ if [[ "$AUTO_YES" != "true" ]] && [[ "$DRY_RUN" != "true" ]]; then
   echo ""
   # Lire depuis /dev/tty pour supporter "curl ... | bash"
   if [[ -t 0 ]]; then
+    # stdin est un terminal, read normal
     read -rp "Confirmer la suppression ? [o/N] " response
-  elif [[ -e /dev/tty ]]; then
-    read -rp "Confirmer la suppression ? [o/N] " response < /dev/tty
+  elif [[ -r /dev/tty ]]; then
+    # stdin est un pipe (curl|bash), lire depuis /dev/tty
+    # Le prompt doit être affiché manuellement sur /dev/tty
+    printf "Confirmer la suppression ? [o/N] " > /dev/tty
+    read -r response < /dev/tty
   else
     echo -e "${RED}Impossible de lire la confirmation (pas de terminal).${NC}"
     echo "Utilisez --yes pour désinstaller sans confirmation :"
