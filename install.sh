@@ -38,11 +38,15 @@ if [[ -t 1 ]]; then
   RED='\e[91m'
   GREEN='\e[92m'
   YELLOW='\e[93m'
+  BLUE='\e[94m'
+  BOLD='\e[1m'
   NC='\e[0m'
 else
   RED=''
   GREEN=''
   YELLOW=''
+  BLUE=''
+  BOLD=''
   NC=''
 fi
 
@@ -745,7 +749,16 @@ ensure_chezscheme_accessible
 # Sur Ubuntu 20.04 (focal), l'archive est compilée avec Chez 9.5 (apt).
 ensure_chezscheme_version_for_focal() {
   # S'applique uniquement à Ubuntu focal.
-  if [[ "${DISTRO_ID:-}" != "ubuntu" ]] || [[ "${DISTRO_VERSION_ID:-}" != "20.04" ]]; then
+  # NB: l'installeur expose les infos OS via ISTIC_OS_ID/ISTIC_OS_VERSION_ID.
+  local os_id="${ISTIC_OS_ID:-}"
+  local os_version_id="${ISTIC_OS_VERSION_ID:-}"
+  if [[ -z "$os_id" ]] && [[ -f /etc/os-release ]]; then
+    os_id=$(grep "^ID=" /etc/os-release | cut -d= -f2 | tr -d '"')
+  fi
+  if [[ -z "$os_version_id" ]] && [[ -f /etc/os-release ]]; then
+    os_version_id=$(grep "^VERSION_ID=" /etc/os-release | cut -d= -f2 | tr -d '"')
+  fi
+  if [[ "$os_id" != "ubuntu" ]] || [[ "$os_version_id" != "20.04" ]]; then
     return 0
   fi
 
@@ -782,7 +795,10 @@ ensure_chezscheme_version_for_focal() {
     echo -e "  ${BLUE}[Détails]${NC} commande utilisée : ${scheme_cmd} → ${scheme_path}"
     echo ""
 
-    if [[ "$FORCE" != "1" ]]; then
+    # En mode scripté (--yes), on applique automatiquement la correction.
+    if [[ "$ASSUME_YES" == "1" ]]; then
+      info "Mode --yes : correction automatique activée."
+    elif [[ "$FORCE" != "1" ]]; then
       local response=""
       echo "Je peux corriger automatiquement (recommandé)."
       echo "Cela va :"
@@ -820,6 +836,22 @@ ensure_chezscheme_version_for_focal() {
       error "Chez 9.5 introuvable après apt ($apt_chez)."
     fi
 
+    # IMPORTANT: si une installation manuelle existe dans /usr/local/bin, elle masque /usr/bin dans le PATH.
+    # On la déplace de côté (sauvegarde) pour que la commande 'scheme' pointe bien vers apt.
+    if [[ -n "$scheme_path" ]] && [[ "$scheme_path" != "/usr/bin/scheme" ]] && [[ -e "$scheme_path" ]]; then
+      local ts2
+      ts2=$(date +%s)
+      if [[ "$scheme_path" == /usr/local/bin/* ]]; then
+        warn "Une version manuelle de 'scheme' masque apt: $scheme_path"
+        warn "Sauvegarde vers: ${scheme_path}.manual.bak.$ts2"
+        run_as_root mv "$scheme_path" "${scheme_path}.manual.bak.$ts2"
+      elif [[ "$scheme_path" == "$HOME"/* ]]; then
+        warn "Une version manuelle de 'scheme' dans le HOME masque apt: $scheme_path"
+        warn "Sauvegarde vers: ${scheme_path}.manual.bak.$ts2"
+        mv "$scheme_path" "${scheme_path}.manual.bak.$ts2" || true
+      fi
+    fi
+
     # Si /usr/bin/scheme est un fichier (pas un lien), on sauvegarde avant de remplacer.
     if [[ -e /usr/bin/scheme ]] && [[ ! -L /usr/bin/scheme ]]; then
       local ts
@@ -846,6 +878,11 @@ ensure_chezscheme_version_for_focal() {
     v1=$(/usr/bin/scheme --version 2>&1 | head -1 || true)
     v2=$(/usr/bin/chezscheme --version 2>&1 | head -1 || true)
     info "Chez Scheme (après correction): scheme=$v1 ; chezscheme=$v2"
+
+    # Vérifier aussi la résolution dans le PATH
+    local resolved
+    resolved=$(command -v scheme 2>/dev/null || true)
+    info "Chez Scheme (résolution PATH): scheme -> $resolved"
   fi
 }
 
