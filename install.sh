@@ -806,6 +806,9 @@ for script in "$HOME/.local/bin/pack" "$HOME/.local/bin/idris2" "$HOME/.local/bi
     # Remplacer tout chemin /home/*/. ou /Users/*/.local par $HOME/.local
     portable_sed_inplace "$script" "s|/home/[^/]*/\\.local/|$HOME/.local/|g"
     portable_sed_inplace "$script" "s|/Users/[^/]*/\\.local/|$HOME/.local/|g"
+    # Remplacer aussi les chemins .pack (les wrappers statiques les utilisent)
+    portable_sed_inplace "$script" "s|/home/[^/]*/\\.pack/|$HOME/.pack/|g"
+    portable_sed_inplace "$script" "s|/Users/[^/]*/\\.pack/|$HOME/.pack/|g"
   fi
 done
 
@@ -814,6 +817,7 @@ done
 # la résolution des bibliothèques après extraction dans un autre HOME).
 fix_builder_paths() {
   local bases=(
+    "$HOME/.pack"
     "$HOME/.local/state/pack"
     "$HOME/.config/pack"
     "$HOME/.cache/pack"
@@ -853,6 +857,9 @@ if ! grep -q '.local/bin' "$HOME/.bashrc" 2>/dev/null; then
   echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
   info "PATH mis à jour dans ~/.bashrc"
 fi
+
+# Ensure PATH is updated for the current script run (non-interactive shells won't reload rc files).
+export PATH="$HOME/.local/bin:$PATH"
 
 # Support zsh
 if [[ -f "$HOME/.zshrc" ]] && ! grep -q '.local/bin' "$HOME/.zshrc" 2>/dev/null; then
@@ -940,9 +947,9 @@ PACK_INFO_FIRSTLINE=""
 IDRIS2_VERSION_LINE=""
 IDRIS2_LSP_VERSION_LINE=""
 
-if command -v pack &>/dev/null; then
+if [[ -x "$HOME/.local/bin/pack" ]]; then
   set +e
-  PACK_INFO_OUTPUT=$(pack info 2>&1)
+  PACK_INFO_OUTPUT=$($HOME/.local/bin/pack info 2>&1)
   pack_rc=$?
   set -e
   PACK_INFO_FIRSTLINE=$(echo "$PACK_INFO_OUTPUT" | head -1 | tr -d '\r')
@@ -953,14 +960,14 @@ if command -v pack &>/dev/null; then
   fi
 fi
 
-if command -v idris2 &>/dev/null; then
+if [[ -x "$HOME/.local/bin/idris2" ]]; then
   IDRIS2_OK=1
-  IDRIS2_VERSION_LINE=$(idris2 --version 2>/dev/null | head -1 | tr -d '\r' || true)
+  IDRIS2_VERSION_LINE=$($HOME/.local/bin/idris2 --version 2>/dev/null | head -1 | tr -d '\r' || true)
 fi
 
-if command -v idris2-lsp &>/dev/null; then
+if [[ -x "$HOME/.local/bin/idris2-lsp" ]]; then
   LSP_OK=1
-  IDRIS2_LSP_VERSION_LINE=$(idris2-lsp --version 2>/dev/null | head -1 | tr -d '\r' || true)
+  IDRIS2_LSP_VERSION_LINE=$($HOME/.local/bin/idris2-lsp --version 2>/dev/null | head -1 | tr -d '\r' || true)
 fi
 
 # Persist debug info now that we know what works.
