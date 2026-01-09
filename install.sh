@@ -651,6 +651,19 @@ ensure_student_required_commands
 # Installer tous les paquets en une seule fois
 if [[ -n "$PACKAGES_TO_INSTALL" ]]; then
   PACKAGES_TO_INSTALL=$(echo "$PACKAGES_TO_INSTALL" | xargs)  # trim whitespace
+
+  echo ""
+  echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${YELLOW}Dépendances à installer${NC}"
+  echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+  echo "Le script va installer les paquets suivants (c'est normal) :"
+  echo "  $PACKAGES_TO_INSTALL"
+  echo ""
+  echo "Cela peut prendre 1 à 2 minutes selon ta connexion."
+  echo "Si un mot de passe est demandé, c'est le mot de passe de ta session (sudo)."
+  echo ""
+
   ensure_sudo_or_root
   case "$PKG_MANAGER" in
     apt)
