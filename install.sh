@@ -808,36 +808,13 @@ ensure_chezscheme_version_for_focal() {
     echo -e "  ${BLUE}[Détails]${NC} commande utilisée : ${scheme_cmd} → ${scheme_path}"
     echo ""
 
-    # En mode scripté (--yes), on applique automatiquement la correction.
+    # Sur Ubuntu 20.04, on corrige automatiquement (sans prompt) pour éviter de bloquer les débutants.
+    # La correction est réversible: on fait un backup des exécutables manuels qui masquent apt.
     if [[ "$ASSUME_YES" == "1" ]]; then
       info "Mode --yes : correction automatique activée."
-    elif [[ "$FORCE" != "1" ]]; then
-      local response=""
-      echo "Je peux corriger automatiquement (recommandé)."
-      echo "Cela va :"
-      echo "  1) (ré)installer Chez Scheme 9.5 via apt"
-      echo "  2) faire pointer la commande 'scheme' vers la bonne version"
-      echo "  3) sauvegarder l'ancienne commande si nécessaire"
-      echo ""
-
-      if [[ -t 0 ]]; then
-        read -rp "Appliquer la correction automatique ? [o/N] " response
-      elif [[ -r /dev/tty ]]; then
-        printf "Appliquer la correction automatique ? [o/N] " > /dev/tty
-        read -r response < /dev/tty
-      fi
-
-      case "$response" in
-        [oOyY]|[oOyY][uUeE][iIsS])
-          ;;
-        *)
-          echo ""
-          error "OK. Rien n'a été changé.\nRelance l'installation après avoir remis Chez Scheme 9.5 (apt)."
-          ;;
-      esac
     else
-      warn "Option --force : on continue malgré le conflit (non recommandé)."
-      return 0
+      warn "Correction automatique : remplacement de Chez Scheme 10.x par la version apt 9.5 (Ubuntu 20.04)."
+      echo "  (Cette correction est réversible : un backup est créé si nécessaire.)"
     fi
 
     # Assurer la présence de Chez 9.5 via apt
@@ -858,10 +835,12 @@ ensure_chezscheme_version_for_focal() {
         warn "Une version manuelle de 'scheme' masque apt: $scheme_path"
         warn "Sauvegarde vers: ${scheme_path}.manual.bak.$ts2"
         run_as_root mv "$scheme_path" "${scheme_path}.manual.bak.$ts2"
+        echo "  Pour annuler: sudo mv ${scheme_path}.manual.bak.$ts2 $scheme_path"
       elif [[ "$scheme_path" == "$HOME"/* ]]; then
         warn "Une version manuelle de 'scheme' dans le HOME masque apt: $scheme_path"
         warn "Sauvegarde vers: ${scheme_path}.manual.bak.$ts2"
         mv "$scheme_path" "${scheme_path}.manual.bak.$ts2" || true
+        echo "  Pour annuler: mv ${scheme_path}.manual.bak.$ts2 $scheme_path"
       fi
     fi
 
