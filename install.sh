@@ -771,23 +771,24 @@ ensure_chezscheme_version_for_focal() {
   if [[ "$scheme_version" =~ ^10\. ]] || [[ "$scheme_version" == *"pre-release"* ]]; then
     echo ""
     echo -e "${YELLOW}══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${YELLOW}  Conflit détecté: Chez Scheme ${scheme_version}${NC}"
+    echo -e "${YELLOW}  Problème détecté (chez scheme)${NC}"
     echo -e "${YELLOW}══════════════════════════════════════════════════════════════${NC}"
     echo ""
-    echo "  Les binaires pré-compilés pour Ubuntu 20.04 requièrent Chez Scheme 9.5 (apt)."
-    echo "  Votre système utilise une version 10.x, ce qui cause souvent: fichiers boot introuvables."
+    echo "  Ton ordinateur utilise une ancienne version de Chez Scheme (10.x)."
+    echo "  Pour Ubuntu 20.04, Idris2 a besoin de Chez Scheme 9.5 (installé via apt)."
+    echo "  Sinon, l'installation peut échouer avec: \"fichiers boot introuvables\"."
     echo ""
-    echo -e "  ${BLUE}[Contexte]${NC} $scheme_cmd -> $scheme_path"
-    echo -e "  ${BLUE}[Contexte]${NC} SCHEMEHEAPDIRS=${SCHEMEHEAPDIRS:-<non défini>}"
+    echo -e "  ${BLUE}[Détails]${NC} version détectée : ${BOLD}${scheme_version}${NC}"
+    echo -e "  ${BLUE}[Détails]${NC} commande utilisée : ${scheme_cmd} → ${scheme_path}"
     echo ""
 
     if [[ "$FORCE" != "1" ]]; then
       local response=""
-      echo "Je peux tenter une correction automatique (recommandé) :"
-      echo "  - réinstaller chezscheme via apt"
-      echo "  - basculer /usr/bin/scheme sur /usr/bin/chezscheme9.5"
-      echo "  - créer /usr/bin/chezscheme -> /usr/bin/chezscheme9.5"
-      echo "  - conserver une sauvegarde si /usr/bin/scheme n'est pas un lien"
+      echo "Je peux corriger automatiquement (recommandé)."
+      echo "Cela va :"
+      echo "  1) (ré)installer Chez Scheme 9.5 via apt"
+      echo "  2) faire pointer la commande 'scheme' vers la bonne version"
+      echo "  3) sauvegarder l'ancienne commande si nécessaire"
       echo ""
 
       if [[ -t 0 ]]; then
@@ -802,7 +803,7 @@ ensure_chezscheme_version_for_focal() {
           ;;
         *)
           echo ""
-          error "Conflit Chez Scheme non résolu. Relancez avec --force pour ignorer (non recommandé)."
+          error "OK. Rien n'a été changé.\nRelance l'installation après avoir remis Chez Scheme 9.5 (apt)."
           ;;
       esac
     else
@@ -1287,33 +1288,68 @@ else
 
   # Check for Chez Scheme boot file issue
   if echo "$pack_error_output" | grep -q "chezscheme.boot\|petite.boot\|cannot find compatible"; then
-    echo -e "  ${RED}✗ Erreur Chez Scheme : fichiers boot introuvables${NC}"
-    echo ""
-    echo "  Les binaires pré-compilés ne trouvent pas les fichiers boot de Chez Scheme."
-    echo "  Ce problème survient quand l'archive a été compilée sur une autre distribution."
-    echo ""
-    echo "  Solutions :"
-    echo ""
-    echo "  1. Définir SCHEMEHEAPDIRS et recharger le shell :"
-    echo "     Ajoutez à ~/.bashrc :"
-    
-    # Find chez scheme library directories
-    chez_dirs=""
-    for dir in /usr/lib64/csv* /usr/lib/csv* /usr/lib/chez-scheme /usr/lib64/chez-scheme; do
-      if [[ -d "$dir" ]]; then
-        chez_dirs="${chez_dirs:+$chez_dirs:}$dir"
+    # Cas fréquent sur Ubuntu 20.04: une ancienne version de Chez (10.x) est installée et casse l'archive.
+    if [[ "${DISTRO_ID:-}" == "ubuntu" ]] && [[ "${DISTRO_VERSION_ID:-}" == "20.04" ]]; then
+      # Tenter une correction automatique (guidée). Si ça marche, on continue l'installation.
+      ensure_chezscheme_version_for_focal || true
+      set +e
+      PACK_INFO_OUTPUT=$(pack info 2>&1)
+      pack_rc=$?
+      set -e
+      if [[ $pack_rc -eq 0 ]]; then
+        PACK_OK=1
+        PACK_INFO_FIRSTLINE=$(echo "$PACK_INFO_OUTPUT" | head -1 | tr -d '\r')
+        info "Chez Scheme corrigé. Reprise de l'installation..."
+      else
+        pack_error_output="$PACK_INFO_OUTPUT"
       fi
-    done
-    
-    if [[ -n "$chez_dirs" ]]; then
-      echo "       export SCHEMEHEAPDIRS=\"$chez_dirs\""
-    else
-      echo "       export SCHEMEHEAPDIRS=\"/usr/lib64/csv9.5:/usr/lib/csv9.5\""
     fi
-    echo "     Puis : source ~/.bashrc"
-    echo ""
-    print_distro_context || true
-    exit 1
+
+    if [[ "$PACK_OK" != "1" ]]; then
+      echo -e "  ${RED}✗ Problème Chez Scheme : fichiers \"boot\" introuvables${NC}"
+      echo ""
+      echo "  Ton installation de Chez Scheme n'est pas compatible avec ces binaires Idris2."
+      echo "  (Souvent: une version installée manuellement prend le dessus sur la version apt.)"
+      echo ""
+      echo -e "  ${YELLOW}Solution simple (recommandée) :${NC}"
+      echo ""
+      echo "  1) Réinstaller Chez Scheme via apt :"
+      echo "       sudo apt update"
+      echo "       sudo apt install --reinstall chezscheme chezscheme9.5"
+      echo ""
+      echo "  2) Forcer la commande scheme vers la bonne version :"
+      echo "       sudo ln -sf /usr/bin/chezscheme9.5 /usr/bin/scheme"
+      echo "       sudo ln -sf /usr/bin/chezscheme9.5 /usr/bin/chezscheme"
+      echo ""
+      echo "  3) Relancer l'installation :"
+      echo "       curl -fsSL https://raw.githubusercontent.com/thanberree/idris2-install/main/install.sh | bash"
+      echo ""
+      echo -e "  ${BLUE}[Détails]${NC} Erreur complète :"
+      echo "  $pack_error_output"
+
+      # Find chez scheme library directories
+      echo ""
+      echo -e "  ${YELLOW}Si le problème persiste :${NC}"
+      echo "  Ajoute SCHEMEHEAPDIRS (chemin des fichiers boot), puis relance le terminal."
+      echo "  Ajoute à ~/.bashrc :"
+    
+      chez_dirs=""
+      for dir in /usr/lib64/csv* /usr/lib/csv* /usr/lib/chez-scheme /usr/lib64/chez-scheme; do
+        if [[ -d "$dir" ]]; then
+          chez_dirs="${chez_dirs:+$chez_dirs:}$dir"
+        fi
+      done
+
+      if [[ -n "$chez_dirs" ]]; then
+        echo "       export SCHEMEHEAPDIRS=\"$chez_dirs\""
+      else
+        echo "       export SCHEMEHEAPDIRS=\"/usr/lib64/csv9.5:/usr/lib/csv9.5\""
+      fi
+      echo "  Puis exécute : source ~/.bashrc"
+      echo ""
+      print_distro_context || true
+      exit 1
+    fi
   fi
   
   if [[ "$PACK_OK" == "0" ]]; then
