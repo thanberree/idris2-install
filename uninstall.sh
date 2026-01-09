@@ -229,7 +229,17 @@ echo ""
 if [[ "$AUTO_YES" != "true" ]] && [[ "$DRY_RUN" != "true" ]]; then
   echo -e "${YELLOW}Voulez-vous supprimer ces éléments ? Cette action est irréversible.${NC}"
   echo ""
-  read -rp "Confirmer la suppression ? [o/N] " response
+  # Lire depuis /dev/tty pour supporter "curl ... | bash"
+  if [[ -t 0 ]]; then
+    read -rp "Confirmer la suppression ? [o/N] " response
+  elif [[ -e /dev/tty ]]; then
+    read -rp "Confirmer la suppression ? [o/N] " response < /dev/tty
+  else
+    echo -e "${RED}Impossible de lire la confirmation (pas de terminal).${NC}"
+    echo "Utilisez --yes pour désinstaller sans confirmation :"
+    echo "  curl -fsSL .../uninstall.sh | bash -s -- --yes"
+    exit 1
+  fi
   case "$response" in
     [oOyY]|[oOyY][uUeE][iIsS])
       echo ""
