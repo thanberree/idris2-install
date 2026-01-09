@@ -506,7 +506,70 @@ need_pkg_update() {
     case "$PKG_MANAGER" in
       apt)
         info "Mise à jour des sources apt..."
-        sudo apt-get update
+        # apt-get update peut échouer si un dépôt tiers est cassé.
+        # On tente une réparation automatique (désactivation du dépôt fautif) avec backup réversible.
+        set +e
+        apt_out=$(sudo apt-get update 2>&1)
+        apt_rc=$?
+        set -e
+        if [[ $apt_rc -ne 0 ]]; then
+          warn "apt update a échoué. Tentative de réparation automatique..."
+          echo "$apt_out" | tail -n 12 >&2
+
+          # Extraire l'URL du dépôt qui pose problème (cas courant: "Release" manquant)
+          bad_url=$(echo "$apt_out" | sed -n "s/^E: Le dépôt '\([^']*\)' ne contient plus de fichier Release\.$/\1/p" | head -1)
+          if [[ -z "${bad_url:-}" ]]; then
+            bad_url=$(echo "$apt_out" | sed -n "s/^E: The repository '\(https\?:\/\/[^ ]\+\) .*' does not have a Release file\.$/\1/p" | head -1)
+          fi
+          if [[ -z "${bad_url:-}" ]]; then
+            bad_url=$(echo "$apt_out" | sed -n "s/^E: The repository '\(http[^ ]\+\) .*' does not have a Release file\.$/\1/p" | head -1)
+          fi
+          if [[ -z "${bad_url:-}" ]]; then
+            bad_url=$(echo "$apt_out" | sed -n "s/^Err:.* \(https\?:\/\/[^ ]\+\) .*$/\1/p" | head -1)
+          fi
+
+          if [[ -n "${bad_url:-}" ]]; then
+            ts=$(date +%s)
+            # Normaliser pour matcher quelle que soit la variante http/https.
+            bad_token=${bad_url#http://}
+            bad_token=${bad_token#https://}
+            bad_token=${bad_token%/}
+
+            warn "Dépôt tiers cassé détecté: $bad_url"
+            warn "Je vais le désactiver temporairement (backup réversible)."
+
+            # Désactiver les entrées qui contiennent l'URL dans /etc/apt/sources.list.d/*.list / *.sources
+            disabled_any=0
+            for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+              [[ -f "$f" ]] || continue
+              if sudo grep -qF "$bad_url" "$f" 2>/dev/null || sudo grep -qF "$bad_token" "$f" 2>/dev/null; then
+                sudo mv "$f" "$f.disabled.$ts"
+                warn "Désactivé: $f -> $f.disabled.$ts"
+                disabled_any=1
+              fi
+            done
+
+            # Si l'URL est dans /etc/apt/sources.list, commenter les lignes correspondantes.
+            if sudo grep -qF "$bad_url" /etc/apt/sources.list 2>/dev/null || sudo grep -qF "$bad_token" /etc/apt/sources.list 2>/dev/null; then
+              sudo cp /etc/apt/sources.list "/etc/apt/sources.list.bak.$ts"
+              sudo sed -i "\\|$bad_token| s/^/# disabled-by-idris2-installer $ts: /" /etc/apt/sources.list
+              warn "Modifié: /etc/apt/sources.list (backup: /etc/apt/sources.list.bak.$ts)"
+              disabled_any=1
+            fi
+
+            if [[ "$disabled_any" == "0" ]]; then
+              warn "Je n'ai pas trouvé le dépôt fautif dans /etc/apt/sources.list(.d)."
+              warn "Il est peut-être défini autrement (ou via une redirection)."
+            fi
+
+            warn "Pour annuler: renommer *.disabled.$ts et restaurer sources.list.bak.$ts"
+          else
+            warn "Impossible d'identifier automatiquement le dépôt fautif."
+          fi
+
+          info "Nouvelle tentative: apt-get update..."
+          sudo apt-get update
+        fi
         ;;
       dnf)
         # dnf n'a pas besoin de update explicite avant install
@@ -819,8 +882,9 @@ ensure_chezscheme_version_for_focal() {
 
     # Assurer la présence de Chez 9.5 via apt
     info "Réinstallation de Chez Scheme (apt) ..."
-    run_as_root apt-get update -y
-    run_as_root apt-get install -y --reinstall chezscheme chezscheme9.5
+    # Utiliser la même logique robuste que pour les dépendances
+    need_pkg_update
+    run_as_root env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt-get install -y --reinstall chezscheme chezscheme9.5
 
     if [[ ! -x "$apt_chez" ]]; then
       error "Chez 9.5 introuvable après apt ($apt_chez)."
