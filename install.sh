@@ -740,69 +740,115 @@ ensure_chezscheme_accessible() {
 
 ensure_chezscheme_accessible
 
-# Vérifier que la version de Chez Scheme est compatible
-# L'archive focal est compilée avec Chez 9.5, pas 10.x
-check_chez_version_compatibility() {
-  local scheme_version=""
+# Vérifier (et corriger automatiquement si possible) un conflit de version Chez Scheme.
+# Symptôme fréquent: "fichiers boot introuvables" et référence à csv10.x.
+# Sur Ubuntu 20.04 (focal), l'archive est compilée avec Chez 9.5 (apt).
+ensure_chezscheme_version_for_focal() {
+  # S'applique uniquement à Ubuntu focal.
+  if [[ "${DISTRO_ID:-}" != "ubuntu" ]] || [[ "${DISTRO_VERSION_ID:-}" != "20.04" ]]; then
+    return 0
+  fi
+
   local scheme_cmd=""
-  
-  # Trouver la commande scheme
+  local scheme_path=""
+  local scheme_version=""
+  local apt_chez="/usr/bin/chezscheme9.5"
+
   if command -v scheme &>/dev/null; then
     scheme_cmd="scheme"
   elif command -v chezscheme &>/dev/null; then
     scheme_cmd="chezscheme"
   elif command -v chez &>/dev/null; then
     scheme_cmd="chez"
+  else
+    return 0
   fi
-  
-  if [[ -z "$scheme_cmd" ]]; then
-    return 0  # Pas de scheme trouvé, la vérification passera après installation apt
-  fi
-  
-  # Récupérer la version
+
+  scheme_path=$(command -v "$scheme_cmd" 2>/dev/null || true)
   scheme_version=$($scheme_cmd --version 2>&1 | head -1 || echo "unknown")
-  
-  # Détecter les versions 10.x qui sont incompatibles avec l'archive focal (compilée avec 9.5)
-  if [[ "$scheme_version" =~ ^10\. ]] || [[ "$scheme_version" =~ "pre-release" ]]; then
+
+  # Si on détecte Chez 10.x / pre-release, tenter de revenir sur la version apt 9.5.
+  if [[ "$scheme_version" =~ ^10\. ]] || [[ "$scheme_version" == *"pre-release"* ]]; then
     echo ""
-    echo -e "${RED}══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${RED}       CONFLIT DE VERSION CHEZ SCHEME${NC}"
-    echo -e "${RED}══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}  Conflit détecté: Chez Scheme ${scheme_version}${NC}"
+    echo -e "${YELLOW}══════════════════════════════════════════════════════════════${NC}"
     echo ""
-    echo -e "  Version détectée : ${BOLD}$scheme_version${NC}"
-    echo -e "  Version requise  : ${BOLD}9.5.x${NC} (fournie par apt sur Ubuntu 20.04)"
+    echo "  Les binaires pré-compilés pour Ubuntu 20.04 requièrent Chez Scheme 9.5 (apt)."
+    echo "  Votre système utilise une version 10.x, ce qui cause souvent: fichiers boot introuvables."
     echo ""
-    echo "  Vous avez une version de Chez Scheme installée manuellement"
-    echo "  (probablement depuis GitHub ou une ancienne installation pack)."
+    echo -e "  ${BLUE}[Contexte]${NC} $scheme_cmd -> $scheme_path"
+    echo -e "  ${BLUE}[Contexte]${NC} SCHEMEHEAPDIRS=${SCHEMEHEAPDIRS:-<non défini>}"
     echo ""
-    echo "  Cette version est incompatible avec les binaires pré-compilés."
-    echo ""
-    echo -e "${YELLOW}Solutions :${NC}"
-    echo ""
-    echo "  1. Désinstaller l'ancienne version de Chez Scheme :"
-    echo "     - Supprimer ~/scheme* ou /usr/local/lib/csv*"
-    echo "     - Vérifier: which scheme && ls -la /usr/lib/csv*"
-    echo ""
-    echo "  2. Utiliser la version apt (recommandé) :"
-    echo "     sudo apt install --reinstall chezscheme"
-    echo "     hash -r  # Rafraîchir le cache des commandes"
-    echo ""
-    echo "  3. Forcer la variable SCHEMEHEAPDIRS vers apt :"
-    echo "     export SCHEMEHEAPDIRS=/usr/lib/csv9.5/ta6le"
-    echo ""
-    echo -e "${BLUE}[Contexte]${NC} scheme trouvé: $(which $scheme_cmd)"
-    echo -e "${BLUE}[Contexte]${NC} SCHEMEHEAPDIRS=${SCHEMEHEAPDIRS:-<non défini>}"
-    echo ""
-    
-    if [[ "$FORCE" == "1" ]]; then
-      warn "Option --force : on continue malgré le conflit de version..."
+
+    if [[ "$FORCE" != "1" ]]; then
+      local response=""
+      echo "Je peux tenter une correction automatique (recommandé) :"
+      echo "  - réinstaller chezscheme via apt"
+      echo "  - basculer /usr/bin/scheme sur /usr/bin/chezscheme9.5"
+      echo "  - créer /usr/bin/chezscheme -> /usr/bin/chezscheme9.5"
+      echo "  - conserver une sauvegarde si /usr/bin/scheme n'est pas un lien"
+      echo ""
+
+      if [[ -t 0 ]]; then
+        read -rp "Appliquer la correction automatique ? [o/N] " response
+      elif [[ -r /dev/tty ]]; then
+        printf "Appliquer la correction automatique ? [o/N] " > /dev/tty
+        read -r response < /dev/tty
+      fi
+
+      case "$response" in
+        [oOyY]|[oOyY][uUeE][iIsS])
+          ;;
+        *)
+          echo ""
+          error "Conflit Chez Scheme non résolu. Relancez avec --force pour ignorer (non recommandé)."
+          ;;
+      esac
     else
-      error "Résolvez le conflit Chez Scheme puis relancez l'installation."
+      warn "Option --force : on continue malgré le conflit (non recommandé)."
+      return 0
     fi
+
+    # Assurer la présence de Chez 9.5 via apt
+    info "Réinstallation de Chez Scheme (apt) ..."
+    run_as_root apt-get update -y
+    run_as_root apt-get install -y --reinstall chezscheme chezscheme9.5
+
+    if [[ ! -x "$apt_chez" ]]; then
+      error "Chez 9.5 introuvable après apt ($apt_chez)."
+    fi
+
+    # Si /usr/bin/scheme est un fichier (pas un lien), on sauvegarde avant de remplacer.
+    if [[ -e /usr/bin/scheme ]] && [[ ! -L /usr/bin/scheme ]]; then
+      local ts
+      ts=$(date +%s)
+      warn "/usr/bin/scheme n'est pas un lien. Sauvegarde vers /usr/bin/scheme.manual.bak.$ts"
+      run_as_root mv /usr/bin/scheme "/usr/bin/scheme.manual.bak.$ts"
+    fi
+
+    # Forcer /usr/bin/scheme vers Chez 9.5
+    if command -v update-alternatives &>/dev/null; then
+      run_as_root update-alternatives --set scheme "$apt_chez" 2>/dev/null || true
+      run_as_root update-alternatives --set scheme-script "$apt_chez" 2>/dev/null || true
+    fi
+
+    # En dernier recours, créer directement les liens attendus.
+    run_as_root ln -sf "$apt_chez" /usr/bin/scheme
+    run_as_root ln -sf "$apt_chez" /usr/bin/chezscheme
+
+    # Rafraîchir le cache des shells
+    hash -r 2>/dev/null || true
+
+    # Vérifier
+    local v1 v2
+    v1=$(/usr/bin/scheme --version 2>&1 | head -1 || true)
+    v2=$(/usr/bin/chezscheme --version 2>&1 | head -1 || true)
+    info "Chez Scheme (après correction): scheme=$v1 ; chezscheme=$v2"
   fi
 }
 
-check_chez_version_compatibility
+ensure_chezscheme_version_for_focal
 
 # Téléchargement et installation
 info "Téléchargement des binaires Idris2 + pack..."
