@@ -271,6 +271,54 @@ echo "Installation d'Idris2 et du gestionnaire de paquets pack."
 echo -e "${YELLOW}[Script v$INSTALLER_VERSION]${NC}"
 echo ""
 
+# =============================================================================
+# Blocage sur les machines de l'université (salles de TP ISTIC)
+# =============================================================================
+# Ce script est destiné aux ordinateurs PERSONNELS des étudiants.
+# Sur les machines de l'université, Idris2 est déjà installé par les admins.
+
+is_istic_machine() {
+  local hostname_short
+  hostname_short="$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo "")"
+  
+  # Pattern des noms de machines ISTIC:
+  # b40-XXXmNN, b41-XXXmNN, d0XXmNN, e0XXmNN, e1XXmNN, e2XXmNN, i2XXmNN
+  if [[ "$hostname_short" =~ ^b4[01]- ]] || \
+     [[ "$hostname_short" =~ ^d0[0-9]{2}m ]] || \
+     [[ "$hostname_short" =~ ^e[012][0-9]{2}m ]] || \
+     [[ "$hostname_short" =~ ^i2[0-9]{2}m ]]; then
+    return 0
+  fi
+  
+  # Vérifier la plage IP de l'université (148.60.0.0/16)
+  local ip
+  for ip in $(ip -4 addr show 2>/dev/null | grep -oE 'inet [0-9.]+' | awk '{print $2}'); do
+    if [[ "$ip" =~ ^148\.60\. ]]; then
+      return 0
+    fi
+  done
+  
+  return 1
+}
+
+if is_istic_machine; then
+  echo ""
+  echo -e "${RED}╔══════════════════════════════════════════════════════════════════════╗${NC}"
+  echo -e "${RED}║  ERREUR : Ce script ne doit PAS être exécuté sur cette machine !     ║${NC}"
+  echo -e "${RED}╠══════════════════════════════════════════════════════════════════════╣${NC}"
+  echo -e "${RED}║  Vous êtes sur un ordinateur de l'université (salle de TP ISTIC).    ║${NC}"
+  echo -e "${RED}║                                                                      ║${NC}"
+  echo -e "${RED}║  Idris2 est DÉJÀ INSTALLÉ sur ces machines.                          ║${NC}"
+  echo -e "${RED}║  Utilisez directement la commande : idris2                           ║${NC}"
+  echo -e "${RED}║                                                                      ║${NC}"
+  echo -e "${RED}║  Ce script est réservé à votre ordinateur PERSONNEL.                 ║${NC}"
+  echo -e "${RED}╚══════════════════════════════════════════════════════════════════════╝${NC}"
+  echo ""
+  echo "Machine détectée : $(hostname)"
+  echo ""
+  exit 1
+fi
+
 # Vérifications de base
 [[ "${EUID:-$(id -u)}" -eq 0 ]] && error "Ne pas exécuter en root."
 command -v curl &>/dev/null || error "curl est requis. Installez-le avec: sudo apt install curl"
